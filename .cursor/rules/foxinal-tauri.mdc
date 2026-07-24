@@ -1,0 +1,73 @@
+---
+description: Foxinal project overview — Tauri 2 + React + Vite stack for agents
+alwaysApply: true
+---
+
+# Foxinal
+
+Termius-like SSH connection manager (in progress). Login → **Dashboard** inventory (nested groups + SSH hosts) + **multi-tab** Local Terminal / SSH sessions via PTY.
+
+## Auth
+
+- **Sign in** with env credentials (`VITE_DEFAULT_USERNAME` / `VITE_DEFAULT_PASSWORD`, default `admin`/`admin`) — reserved for future server sync
+- **Continue locally** — no credentials; same local inventory (`localStorage`); UI shows “Local”
+- Session type: `AppSession` in `App.tsx` (`account` | `local`)
+
+## Stack
+
+| Layer | Tech |
+|-------|------|
+| Frontend | React 19, TypeScript, Vite 7, xterm, `@tabler/icons-react` |
+| Backend | Rust (edition 2021), Tauri 2, `tauri-plugin-pty` |
+| Package manager | **pnpm** (see lockfile) |
+| Bundle id | `com.foxinal` |
+
+## Layout
+
+- `src/App.tsx` — login (account + local) + session gate
+- `src/Dashboard.tsx` — navbar + inventory + **session tab strip** (PTYs stay mounted when switching tabs / visiting Dashboard)
+- `src/sessions.ts` — tab model (`createLocalTab` / `createHostTab`)
+- `src/settings/` — `SettingsDialog` (terminal prefs, account UI, about/version) + `terminalPrefs.ts`
+- `src/TerminalView.tsx` — local shell or SSH; SSH shows connecting / error+retry overlay; host container must not use padding (FitAddon ignores it and clips the last row — pad `.xterm` instead); reads terminal prefs
+- `src/version.ts` — app version from `package.json`
+- `src-tauri/src/lib.rs` — `default_shell`, `prepare_ssh_launch`, `cleanup_ssh_temp`
+- `.env` — `VITE_DEFAULT_USERNAME` / `VITE_DEFAULT_PASSWORD` (default `admin`/`admin`)
+
+## Inventory / SSH
+
+- Storage: `localStorage` `foxinal-inventory` (host secrets plaintext for now)
+- Host fields: label, address, port (22), username, password **or** private key
+- **Sibling names unique** under each parent (groups + hosts share the namespace)
+- **Duplicate host** (copy icon) opens prefilled create dialog (`name copy`, same credentials)
+- Dashboard: **search** current folder **and nested** groups/hosts (shows relative path), **list/grid** + **A–Z / Z–A** (`foxinal-inventory-layout`, `foxinal-inventory-sort`)
+- **Import / Export** JSON (`foxinal-inventory` v1): at root = whole inventory; inside a group = that group’s subtree / import into that group
+- **Double-click group** → enter folder; **double-click host** → new session **tab**
+- **Drag-and-drop**: grip `button[draggable]` (`text/plain` + `draggingIdRef`); list gets `--dnd` so group children ignore pointer hits; never `pointer-events:none` on the dragging row (cancels WebKit drag); drop opens destination; blocked for self/descendant / name clash / already there
+- Password auth auto-types when SSH password prompt appears; temp keys cleaned via `cleanup_ssh_temp`
+- Local Terminal navbar opens another OS shell tab
+
+## UI theme
+
+Clean liquid-glass system in `App.css` (Space Grotesk, `--fox` `#ea580c`, shared spacing/radius tokens). Login uses brand header + card; dashboard uses segmented nav + session badge. Terminal font/size/theme via Settings (`foxinal-terminal-prefs`).
+
+## Brand / icons
+
+- Mark: white fox head + terminal `>` / cursor on fox-orange squircle (`#ea580c` → `#c2410c`)
+- Master: `app-icon.png` (also `app-icon.svg`) → regenerate with `pnpm tauri icon app-icon.png`
+- macOS dock: master PNG must keep ~11% transparent margin per side (~78% content) so optical size matches other apps; do not full-bleed the squircle
+- Bundle icons: `src-tauri/icons/` (icns/ico/png)
+- Favicon: `public/foxinal.svg`; UI mark stays full-bleed: `public/foxinal-icon.png` via `src/BrandMark.tsx`
+
+## Commands
+
+```bash
+pnpm tauri dev      # required for PTY/SSH; Vite :1420
+pnpm tauri build
+pnpm dev            # frontend only — terminal/SSH fail without Tauri
+```
+
+## Conventions
+
+- Prefer Tauri 2 docs; update `capabilities/default.json` when adding plugins
+- Never commit `src-tauri/target/`, `node_modules/`, `dist/`, `.env` / `.env.*` (keep `.env.example`), `.pnpm-store/`
+- Next: server sync for account mode, keychain vault, host-key UX, jump hosts

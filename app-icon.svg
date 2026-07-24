@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Foxinal">
+  <defs>
+    <linearGradient id="foxBg" x1="512" y1="40" x2="512" y2="984" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fb923c"/>
+      <stop offset="0.4" stop-color="#ea580c"/>
+      <stop offset="1" stop-color="#c2410c"/>
+    </linearGradient>
+    <radialGradient id="foxGlow" cx="50%" cy="22%" r="58%">
+      <stop stop-color="#fdba74" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#ea580c" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="228" fill="url(#foxBg)"/>
+  <rect width="1024" height="1024" rx="228" fill="url(#foxGlow)"/>
+  <path
+    fill="#fffaf5"
+    d="M512 160
+       C448 160 400 224 384 304
+       L224 176
+       C160 128 80 176 96 272
+       L128 416
+       C64 496 48 592 64 688
+       C96 864 272 944 512 944
+       C752 944 928 864 960 688
+       C976 592 960 496 896 416
+       L928 272
+       C944 176 864 128 800 176
+       L640 304
+       C624 224 576 160 512 160
+       Z"
+  />
+  <g fill="#ea580c">
+    <ellipse cx="384" cy="464" rx="64" ry="48" transform="rotate(-16 384 464)"/>
+    <ellipse cx="640" cy="464" rx="64" ry="48" transform="rotate(16 640 464)"/>
+    <path d="M272 576 L416 672 L272 768 L224 720 L320 672 L224 624 Z"/>
+    <rect x="464" y="560" width="144" height="224" rx="28"/>
+  </g>
+</svg>

@@ -1,0 +1,27 @@
+---
+description: After each user task, update .cursor/rules when project knowledge changed
+alwaysApply: true
+---
+
+# Keep agent rules current
+
+On **every** user request, after finishing the work (or when discovering lasting project facts mid-task):
+
+1. Check whether `.cursor/rules/` is still accurate for what just changed or was learned.
+2. If yes and nothing durable changed → do nothing to rules.
+3. If something future agents need → **update the rules in the same turn**.
+
+## Update when
+
+- Stack, scripts, ports, package manager, or folder layout changes
+- New Tauri commands, plugins, capabilities, or IPC patterns appear
+- Conventions, architecture decisions, or “gotchas” are established
+- Existing rule content becomes wrong or incomplete
+
+## How
+
+- Prefer editing the relevant `.mdc` under `.cursor/rules/` (e.g. `foxinal-tauri.mdc`)
+- Add a new focused rule only if the topic is distinct and will recur
+- Keep rules concise, actionable, and under ~50 lines per file when possible
+- Do not invent product requirements; only record facts useful for future agents
+- Mention rule updates briefly in the reply when you change them

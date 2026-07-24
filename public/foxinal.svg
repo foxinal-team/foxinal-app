@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Foxinal">
+  <defs>
+    <linearGradient id="bg" x1="64" y1="6" x2="64" y2="122" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fb923c"/>
+      <stop offset="0.4" stop-color="#ea580c"/>
+      <stop offset="1" stop-color="#c2410c"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="22%" r="58%">
+      <stop stop-color="#fdba74" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#ea580c" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="url(#bg)"/>
+  <rect width="128" height="128" rx="28" fill="url(#glow)"/>
+  <!-- Geometric fox head -->
+  <path
+    fill="#fffaf5"
+    d="M64 20
+       C56 20 50 28 48 38
+       L28 22
+       C20 16 10 22 12 34
+       L16 52
+       C8 62 6 74 8 86
+       C12 108 34 118 64 118
+       C94 118 116 108 120 86
+       C122 74 120 62 112 52
+       L116 34
+       C118 22 108 16 100 22
+       L80 38
+       C78 28 72 20 64 20
+       Z"
+  />
+  <g fill="#ea580c">
+    <ellipse cx="48" cy="58" rx="8" ry="6" transform="rotate(-16 48 58)"/>
+    <ellipse cx="80" cy="58" rx="8" ry="6" transform="rotate(16 80 58)"/>
+    <path d="M30 70L52 84L30 98L38 98L60 84L38 70Z"/>
+    <rect x="66" y="70" width="16" height="28" rx="3.5"/>
+  </g>
+</svg>
