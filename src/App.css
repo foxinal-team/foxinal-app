@@ -1358,8 +1358,12 @@ body[data-fox-dragging] * {
 }
 
 .dialog__panel--settings {
-  width: min(100%, 32rem);
+  width: min(100%, 36rem);
+  max-height: min(92dvh, 44rem);
   padding: 1.2rem;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .dialog__field select {
@@ -1422,7 +1426,9 @@ body[data-fox-dragging] * {
 
 .settings__nav {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.25rem;
+  flex-shrink: 0;
   margin: 1rem 0 0.95rem;
   padding: 0.2rem;
   border: 1px solid var(--line);
@@ -1431,7 +1437,8 @@ body[data-fox-dragging] * {
 }
 
 .settings__nav-btn {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 4.5rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1459,7 +1466,12 @@ body[data-fox-dragging] * {
 }
 
 .settings__body {
-  min-height: 16rem;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-right: 0.15rem;
+  scrollbar-width: thin;
 }
 
 .settings__section {
@@ -1585,6 +1597,102 @@ body[data-fox-dragging] * {
 
 .settings__account-actions .inventory__btn:disabled {
   opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.settings__security {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+}
+
+.settings__security-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.settings__security-icon {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  flex-shrink: 0;
+  border-radius: var(--radius-sm);
+  color: var(--leaf);
+  background: color-mix(in srgb, var(--leaf) 12%, transparent);
+}
+
+.settings__security-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.settings__security-meta {
+  margin: 0.2rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--ink-muted);
+  line-height: 1.4;
+}
+
+.settings__security-form,
+.settings__security-remove {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.settings__security-remove {
+  padding-top: 0.35rem;
+  border-top: 1px solid var(--line);
+}
+
+.settings__lock-prefs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--field-bg) 80%, transparent);
+}
+
+.settings__lock-prefs--disabled {
+  opacity: 0.55;
+}
+
+.settings__lock-prefs-title {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+.settings__toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.settings__toggle input {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--fox);
+}
+
+.settings__toggle input:disabled {
   cursor: not-allowed;
 }
 

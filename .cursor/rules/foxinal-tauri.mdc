@@ -5,13 +5,16 @@ alwaysApply: true
 
 # Foxinal
 
-SSH connection manager (in progress). Login → **Dashboard** inventory (nested groups + SSH hosts) + **multi-tab** Local Terminal / SSH sessions via PTY.
+SSH connection manager (in progress). Local-first dashboard (nested groups + SSH hosts) + **multi-tab** Local Terminal / SSH sessions via PTY.
 
-## Auth
+## Auth / security
 
-- **Sign in** with env credentials (`VITE_DEFAULT_USERNAME` / `VITE_DEFAULT_PASSWORD`, default `admin`/`admin`) — reserved for future server sync
-- **Continue locally** — no credentials; same local inventory (`localStorage`); UI shows “Local”
-- Session type: `AppSession` in `App.tsx` (`account` | `local`)
+- **No server sync yet** — always local mode
+- **First run / no master password** → open dashboard unlocked (no login screen)
+- **Optional master password** — Settings → Account → Security; PBKDF2 verifier + **AES-GCM encrypted inventory** (`foxinal-inventory-vault`); plaintext `foxinal-inventory` when unset
+- Unlock derives in-memory `CryptoKey`; saves re-encrypt; Lock clears key from memory
+- **Lock prefs** (`foxinal-security-prefs`, Settings → Security): auto-lock after idle; lock when app is hidden — suspended while dialogs are open; no window.blur (false-triggers in Tauri)
+- Session type: `AppSession` = `{ kind: "local" }` when unlocked
 
 ## Stack
 
@@ -24,14 +27,17 @@ SSH connection manager (in progress). Login → **Dashboard** inventory (nested 
 
 ## Layout
 
-- `src/App.tsx` — login (account + local) + session gate
+- `src/App.tsx` — unlock gate (only when master password exists) + dashboard
 - `src/Dashboard.tsx` — navbar + inventory + **session tab strip** (PTYs stay mounted when switching tabs / visiting Dashboard)
 - `src/sessions.ts` — tab model (`createLocalTab` / `createHostTab`)
-- `src/settings/` — `SettingsDialog` (terminal prefs, account UI, about/version) + `terminalPrefs.ts`
+- `src/settings/` — `SettingsDialog` (terminal, account, **security**, about) + `terminalPrefs.ts`
+- `src/security/masterPassword.ts` — PBKDF2 verifier + AES key derive
+- `src/security/vault.ts` — AES-GCM inventory encrypt/decrypt
+- `src/security/session.ts` — enable/change/disable MP + unlock
+- `src/security/prefs.ts` + `useLockGuards.ts` — auto-lock / lock-on-blur
 - `src/TerminalView.tsx` — local shell or SSH; SSH shows connecting / error+retry overlay; host container must not use padding (FitAddon ignores it and clips the last row — pad `.xterm` instead); reads terminal prefs
-- `src/version.ts` — app name/version imported from `package.json` (login + Settings about)
+- `src/version.ts` — app name/version imported from `package.json` (unlock + Settings about)
 - `src-tauri/src/lib.rs` — `default_shell`, `prepare_ssh_launch`, `cleanup_ssh_temp`
-- `.env` — `VITE_DEFAULT_USERNAME` / `VITE_DEFAULT_PASSWORD` (default `admin`/`admin`)
 
 ## Inventory / SSH
 
@@ -48,7 +54,7 @@ SSH connection manager (in progress). Login → **Dashboard** inventory (nested 
 
 ## UI theme
 
-Clean liquid-glass system in `App.css` (Space Grotesk, `--fox` `#ea580c`, shared spacing/radius tokens). Login uses brand header + card; dashboard uses segmented nav + session badge. Terminal font/size/theme via Settings (`foxinal-terminal-prefs`).
+Clean liquid-glass system in `App.css` (Space Grotesk, `--fox` `#ea580c`, shared spacing/radius tokens). Unlock uses brand header + card; dashboard uses segmented nav + session badge. Terminal font/size/theme via Settings (`foxinal-terminal-prefs`).
 
 ## Brand / icons
 
@@ -81,4 +87,4 @@ pnpm dev            # frontend only — terminal/SSH fail without Tauri
 
 - Prefer Tauri 2 docs; update `capabilities/default.json` when adding plugins
 - Never commit `src-tauri/target/`, `node_modules/`, `dist/`, `.env` / `.env.*` (keep `.env.example`), `.pnpm-store/`
-- Next: server sync for account mode, keychain vault, host-key UX, jump hosts
+- Next: recovery key, OS keychain, host-key UX, jump hosts, server sync

@@ -1,8 +1,7 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
-  readonly VITE_DEFAULT_USERNAME: string;
-  readonly VITE_DEFAULT_PASSWORD: string;
+  // Reserved for future Vite env config
 }
 
 interface ImportMeta {

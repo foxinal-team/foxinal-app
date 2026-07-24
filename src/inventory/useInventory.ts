@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
-import { loadInventory, saveInventory } from "./store";
+import { useEffect, useRef, useState } from "react";
+import { loadInventory } from "./store";
+import { saveInventoryState } from "../security/vault";
 import {
   breadcrumbPath,
   canMoveItem,
@@ -17,13 +18,20 @@ import {
 
 export type SaveResult = { ok: true } | { ok: false; error: string };
 
-export function useInventory() {
-  const [items, setItems] = useState<InventoryItem[]>(() => loadInventory().items);
+export function useInventory(
+  vaultKey: CryptoKey | null = null,
+  initialItems?: InventoryItem[],
+) {
+  const [items, setItems] = useState<InventoryItem[]>(
+    () => initialItems ?? loadInventory().items,
+  );
   const [currentGroupId, setCurrentGroupId] = useState<string | null>(null);
+  const vaultKeyRef = useRef(vaultKey);
+  vaultKeyRef.current = vaultKey;
 
   useEffect(() => {
-    saveInventory({ items });
-  }, [items]);
+    void saveInventoryState({ items }, vaultKeyRef.current);
+  }, [items, vaultKey]);
 
   const currentChildren = childrenOf(items, currentGroupId);
   const breadcrumbs = breadcrumbPath(items, currentGroupId);

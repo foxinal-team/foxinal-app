@@ -10,7 +10,9 @@ SSH connection manager for your desktop. Organize hosts in nested groups, open m
 
 ## Features
 
-- **Local or account login** — continue without credentials, or sign in with env-configured credentials (placeholder for future sync)
+- **Local-first** — opens straight into the app; no account required
+- **Optional master password** — encrypts inventory (AES-GCM); unlock screen on launch
+- **Lock prefs** — optional auto-lock on idle, and lock when the app is hidden/unfocused
 - **Nested inventory** — groups and SSH hosts with search, list/grid layout, and A–Z sorting
 - **Multi-tab sessions** — local OS terminal and SSH tabs stay alive while you switch or visit the dashboard
 - **SSH auth** — password (auto-typed at prompt) or private key
@@ -40,14 +42,6 @@ SSH connection manager for your desktop. Organize hosts in nested groups, open m
 git clone https://github.com/foxinal-team/foxinal-app.git
 cd foxinal
 pnpm install
-cp .env.example .env
-```
-
-Optional `.env` (defaults shown in `.env.example`):
-
-```env
-VITE_DEFAULT_USERNAME=admin
-VITE_DEFAULT_PASSWORD=admin
 ```
 
 ## Development
@@ -69,17 +63,19 @@ Installers land under `src-tauri/target/release/bundle/`.
 
 ## Usage notes
 
-- Inventory is stored in `localStorage` (`foxinal-inventory`). Host secrets are stored in plaintext for now — do not use this for production credentials yet.
+- Master password (optional) encrypts inventory with AES-GCM (`foxinal-inventory-vault`). Without it, inventory stays plaintext in `foxinal-inventory`.
+- Settings → Account → Security also controls **auto-lock** and **lock when hidden/unfocused** (off by default; require a master password).
 - Double-click a **group** to open it; double-click a **host** to connect in a new tab.
 - Drag from the **grip** on a row to nest under another group or move via breadcrumbs.
 - Regenerate app icons from the master art: `pnpm tauri icon app-icon.png`
 
 ## Roadmap
 
-- Server sync for account mode
-- OS keychain / vault for secrets
+- Server sync
+- OS keychain integration
 - Host key verification UX
 - Jump hosts
+- Recovery key for forgotten master password
 
 ## License
 

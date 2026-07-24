@@ -1,65 +1,108 @@
 import {
-  IconDeviceDesktop,
   IconLock,
   IconLogin2,
-  IconUser,
 } from "@tabler/icons-react";
 import { type FormEvent, useState } from "react";
 import "./App.css";
-import { credentialsMatch } from "./auth";
 import { BrandMark } from "./BrandMark";
 import { Dashboard } from "./Dashboard";
+import { loadInventory } from "./inventory/store";
+import { hasMasterPassword } from "./security/masterPassword";
+import { loadSecurityPrefs, type SecurityPrefs } from "./security/prefs";
+import { unlockApp } from "./security/session";
 import { ThemeToggle } from "./ThemeToggle";
 import { useTheme } from "./useTheme";
 import { APP_VERSION } from "./version";
+import type { InventoryItem } from "./inventory/types";
 
-export type AppSession =
-  | { kind: "account"; username: string }
-  | { kind: "local" };
+/** Unlocked app session — local-only until server sync exists. */
+export type AppSession = { kind: "local" };
+
+type UnlockedState = {
+  vaultKey: CryptoKey | null;
+  items: InventoryItem[];
+};
 
 function App() {
-  const [username, setUsername] = useState("");
+  const [locked, setLocked] = useState(() => hasMasterPassword());
+  const [unlocked, setUnlocked] = useState<UnlockedState | null>(() => {
+    if (hasMasterPassword()) return null;
+    return { vaultKey: null, items: loadInventory().items };
+  });
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [session, setSession] = useState<AppSession | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [securityEnabled, setSecurityEnabled] = useState(() =>
+    hasMasterPassword(),
+  );
+  const [securityPrefs, setSecurityPrefs] = useState<SecurityPrefs>(() =>
+    loadSecurityPrefs(),
+  );
   const { theme, cycleTheme, label: themeLabel } = useTheme();
 
-  function handleSubmit(e: FormEvent) {
+  function handleLock() {
+    setPassword("");
+    setError("");
+    setUnlocked(null);
+    setLocked(true);
+  }
+
+  function refreshSecurity() {
+    const enabled = hasMasterPassword();
+    setSecurityEnabled(enabled);
+    if (!enabled) {
+      setLocked(false);
+      setUnlocked((prev) =>
+        prev ?? { vaultKey: null, items: loadInventory().items },
+      );
+    }
+  }
+
+  async function handleUnlock(e: FormEvent) {
     e.preventDefault();
     setError("");
-
-    if (!username.trim() || !password) {
-      setError("Enter your username and password to continue.");
+    if (!password) {
+      setError("Enter your master password.");
       return;
     }
 
-    if (!credentialsMatch(username, password)) {
-      setError("Invalid username or password.");
-      return;
+    setBusy(true);
+    try {
+      const result = await unlockApp(password);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      setPassword("");
+      setUnlocked({ vaultKey: result.key, items: result.items });
+      setSecurityEnabled(true);
+      setLocked(false);
+    } finally {
+      setBusy(false);
     }
-
-    setSession({ kind: "account", username: username.trim() });
-    setPassword("");
   }
 
-  function continueLocally() {
-    setError("");
-    setPassword("");
-    setSession({ kind: "local" });
+  function handleVaultKeyChange(key: CryptoKey | null) {
+    setUnlocked((prev) =>
+      prev ? { ...prev, vaultKey: key } : { vaultKey: key, items: [] },
+    );
   }
 
-  function handleSignOut() {
-    setSession(null);
-    setUsername("");
-    setPassword("");
-    setError("");
+  function handleSecurityPrefsChange(prefs: SecurityPrefs) {
+    setSecurityPrefs(prefs);
   }
 
-  if (session) {
+  if (!locked && unlocked) {
     return (
       <Dashboard
-        session={session}
-        onSignOut={handleSignOut}
+        vaultKey={unlocked.vaultKey}
+        initialItems={unlocked.items}
+        securityEnabled={securityEnabled}
+        securityPrefs={securityPrefs}
+        onLock={handleLock}
+        onSecurityChange={refreshSecurity}
+        onVaultKeyChange={handleVaultKeyChange}
+        onSecurityPrefsChange={handleSecurityPrefsChange}
         theme={theme}
         themeLabel={themeLabel}
         onCycleTheme={cycleTheme}
@@ -89,36 +132,16 @@ function App() {
 
         <div className="login__card">
           <div className="login__card-head">
-            <h1 className="login__headline">Sign in</h1>
+            <h1 className="login__headline">Unlock</h1>
             <p className="login__lede">
-              Sync is coming soon. Until then, sign in or continue on this device.
+              Enter your master password to decrypt your inventory and open
+              Foxinal.
             </p>
           </div>
 
-          <form className="login__form" onSubmit={handleSubmit} noValidate>
-            <label className="login__field" htmlFor="username">
-              <span>Username</span>
-              <span className="login__input-wrap">
-                <IconUser
-                  className="login__input-icon"
-                  size={18}
-                  stroke={1.75}
-                  aria-hidden
-                />
-                <input
-                  id="username"
-                  name="username"
-                  type="text"
-                  autoComplete="username"
-                  value={username}
-                  onChange={(e) => setUsername(e.currentTarget.value)}
-                  placeholder="Enter username"
-                />
-              </span>
-            </label>
-
-            <label className="login__field" htmlFor="password">
-              <span>Password</span>
+          <form className="login__form" onSubmit={handleUnlock} noValidate>
+            <label className="login__field" htmlFor="master-password">
+              <span>Master password</span>
               <span className="login__input-wrap">
                 <IconLock
                   className="login__input-icon"
@@ -127,13 +150,15 @@ function App() {
                   aria-hidden
                 />
                 <input
-                  id="password"
-                  name="password"
+                  id="master-password"
+                  name="master-password"
                   type="password"
                   autoComplete="current-password"
+                  autoFocus
                   value={password}
                   onChange={(e) => setPassword(e.currentTarget.value)}
                   placeholder="••••••••"
+                  disabled={busy}
                 />
               </span>
             </label>
@@ -144,27 +169,11 @@ function App() {
               </p>
             ) : null}
 
-            <button className="login__submit" type="submit">
+            <button className="login__submit" type="submit" disabled={busy}>
               <IconLogin2 size={18} stroke={1.75} aria-hidden />
-              <span>Sign in</span>
+              <span>{busy ? "Unlocking…" : "Unlock"}</span>
             </button>
           </form>
-
-          <div className="login__divider" role="separator">
-            <span>or</span>
-          </div>
-
-          <button
-            type="button"
-            className="login__local"
-            onClick={continueLocally}
-          >
-            <IconDeviceDesktop size={18} stroke={1.75} aria-hidden />
-            <span>Continue locally</span>
-          </button>
-          <p className="login__local-note">
-            Local data only — nothing leaves this app instance.
-          </p>
         </div>
 
         <p className="login__version">v{APP_VERSION}</p>

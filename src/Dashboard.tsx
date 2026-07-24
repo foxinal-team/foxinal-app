@@ -22,7 +22,6 @@ import {
   IconTerminal2,
   IconTrash,
   IconUpload,
-  IconUser,
   IconX,
 } from "@tabler/icons-react";
 import { BrandMark } from "./BrandMark";
@@ -32,11 +31,12 @@ import {
   useRef,
   useState,
 } from "react";
-import type { AppSession } from "./App";
 import { ConfirmDeleteDialog } from "./inventory/ConfirmDeleteDialog";
 import { HostDialog } from "./inventory/HostDialog";
 import { NameDialog } from "./inventory/NameDialog";
 import { useInventory, type SaveResult } from "./inventory/useInventory";
+import type { SecurityPrefs } from "./security/prefs";
+import { useLockGuards } from "./security/useLockGuards";
 import { SettingsDialog } from "./settings/SettingsDialog";
 import {
   loadTerminalPrefs,
@@ -80,8 +80,14 @@ import { ThemeToggle } from "./ThemeToggle";
 type DashboardView = "dashboard" | "session";
 
 type DashboardProps = {
-  session: AppSession;
-  onSignOut: () => void;
+  vaultKey: CryptoKey | null;
+  initialItems: InventoryItem[];
+  securityEnabled: boolean;
+  securityPrefs: SecurityPrefs;
+  onLock: () => void;
+  onSecurityChange: () => void;
+  onVaultKeyChange: (key: CryptoKey | null) => void;
+  onSecurityPrefsChange: (prefs: SecurityPrefs) => void;
   theme: string;
   themeLabel: string;
   onCycleTheme: () => void;
@@ -123,14 +129,19 @@ function unwrapSave(
 }
 
 export function Dashboard({
-  session,
-  onSignOut,
+  vaultKey,
+  initialItems,
+  securityEnabled,
+  securityPrefs,
+  onLock,
+  onSecurityChange,
+  onVaultKeyChange,
+  onSecurityPrefsChange,
   theme,
   themeLabel,
   onCycleTheme,
 }: DashboardProps) {
-  const displayName =
-    session.kind === "account" ? session.username : "Local";
+  const displayName = "Local";
   const [view, setView] = useState<DashboardView>("dashboard");
   const [tabs, setTabs] = useState<SessionTab[]>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
@@ -181,7 +192,7 @@ export function Dashboard({
     openGroup,
     goToRoot,
     goToGroup,
-  } = useInventory();
+  } = useInventory(vaultKey, initialItems);
 
   const itemsRef = useRef(items);
   const moveItemRef = useRef(moveItem);
@@ -194,6 +205,22 @@ export function Dashboard({
 
   const parentLabel = currentGroup?.name ?? "All connections";
   const searchActive = searchQuery.trim().length > 0;
+
+  const dialogOpen =
+    settingsOpen ||
+    createGroupOpen ||
+    createHostOpen ||
+    duplicateHostInput !== null ||
+    renameGroupTarget !== null ||
+    editHostTarget !== null ||
+    deleteTarget !== null;
+
+  useLockGuards({
+    enabled: securityEnabled,
+    suspended: dialogOpen,
+    prefs: securityPrefs,
+    onLock,
+  });
 
   const { groups, hosts } = useMemo(() => {
     const dir = sortDir === "asc" ? 1 : -1;
@@ -487,28 +514,23 @@ export function Dashboard({
             <IconSettings {...iconProps} aria-hidden />
           </button>
           <span
-            className={
-              session.kind === "local"
-                ? "dashboard__badge dashboard__badge--local"
-                : "dashboard__badge"
-            }
-            title={
-              session.kind === "local"
-                ? "Local mode — data stays on this device"
-                : `Signed in as ${displayName}`
-            }
+            className="dashboard__badge dashboard__badge--local"
+            title="Local mode — data stays on this device"
           >
-            {session.kind === "local" ? (
-              <IconDeviceDesktop size={16} stroke={1.75} aria-hidden />
-            ) : (
-              <IconUser size={16} stroke={1.75} aria-hidden />
-            )}
+            <IconDeviceDesktop size={16} stroke={1.75} aria-hidden />
             <span>{displayName}</span>
           </span>
-          <button type="button" className="dashboard__signout" onClick={onSignOut}>
-            <IconLogout {...iconProps} aria-hidden />
-            <span>{session.kind === "local" ? "Leave" : "Sign out"}</span>
-          </button>
+          {securityEnabled ? (
+            <button
+              type="button"
+              className="dashboard__signout"
+              onClick={onLock}
+              title="Lock Foxinal"
+            >
+              <IconLogout {...iconProps} aria-hidden />
+              <span>Lock</span>
+            </button>
+          ) : null}
         </div>
       </header>
 
@@ -624,9 +646,7 @@ export function Dashboard({
               <p className="inventory__lede">
                 {currentGroup
                   ? "Double-click to open or connect. Use the grip handle to drag onto a group or breadcrumb."
-                  : session.kind === "local"
-                    ? "Local data on this device. Use the grip to move items · double-click to open or connect."
-                    : `Welcome, ${displayName}. Use the grip to move items · double-click to open or connect.`}
+                  : "Local data on this device. Use the grip to move items · double-click to open or connect."}
               </p>
             </div>
 
@@ -1126,10 +1146,15 @@ export function Dashboard({
 
       <SettingsDialog
         open={settingsOpen}
-        session={session}
         appTheme={theme}
         terminalPrefs={terminalPrefs}
+        inventoryItems={items}
+        securityEnabled={securityEnabled}
+        securityPrefs={securityPrefs}
         onChangeTerminalPrefs={handleTerminalPrefsChange}
+        onSecurityChange={onSecurityChange}
+        onVaultKeyChange={onVaultKeyChange}
+        onSecurityPrefsChange={onSecurityPrefsChange}
         onClose={() => setSettingsOpen(false)}
       />
     </main>
