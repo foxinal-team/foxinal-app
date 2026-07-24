@@ -66,6 +66,15 @@ pnpm tauri build
 pnpm dev            # frontend only — terminal/SSH fail without Tauri
 ```
 
+## Release / CI
+
+- Workflow: `.github/workflows/release.yml` — macOS (arm64 + x64) + Linux x64 via `tauri-apps/tauri-action`
+- Trigger: push tag `v*` (e.g. `v0.1.0`) or Actions → **release** → Run workflow
+- Creates a **draft** GitHub Release with DMG / AppImage / deb / rpm; publish manually in the UI
+- Bump `version` in `package.json`, `src-tauri/tauri.conf.json`, and `src-tauri/Cargo.toml` before tagging
+- Repo Settings → Actions → General → Workflow permissions → **Read and write** (needed for release upload)
+- No Apple signing/notarization in CI yet (users may need right-click → Open)
+
 ## Conventions
 
 - Prefer Tauri 2 docs; update `capabilities/default.json` when adding plugins
