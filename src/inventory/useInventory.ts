@@ -179,8 +179,6 @@ export function useInventory() {
   }
 
   function openGroup(id: string) {
-    const item = findItem(items, id);
-    if (!item || item.kind !== "group") return;
     setCurrentGroupId(id);
   }
 

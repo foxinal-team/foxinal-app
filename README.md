@@ -37,7 +37,7 @@ Termius-like SSH connection manager for your desktop. Organize hosts in nested g
 ## Setup
 
 ```bash
-git clone https://github.com/<you>/foxinal.git
+git clone https://github.com/foxinal-team/foxinal-app.git
 cd foxinal
 pnpm install
 cp .env.example .env

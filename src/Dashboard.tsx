@@ -27,7 +27,7 @@ import {
 } from "@tabler/icons-react";
 import { BrandMark } from "./BrandMark";
 import {
-  type DragEvent,
+  type PointerEvent as ReactPointerEvent,
   useMemo,
   useRef,
   useState,
@@ -95,6 +95,24 @@ type DropTarget =
   | { kind: "group"; id: string }
   | { kind: "crumb"; id: string | null };
 
+/** Resolve inventory drop target under the pointer (pointer DnD — not HTML5). */
+function dropTargetFromPoint(x: number, y: number): DropTarget | null {
+  for (const el of document.elementsFromPoint(x, y)) {
+    if (!(el instanceof Element)) continue;
+    const node = el.closest("[data-fox-drop]");
+    if (!(node instanceof HTMLElement)) continue;
+    const raw = node.getAttribute("data-fox-drop");
+    if (raw === null) continue;
+    const kindAttr = node.getAttribute("data-fox-drop-kind");
+    if (kindAttr === "crumb") {
+      return { kind: "crumb", id: raw === "root" ? null : raw };
+    }
+    if (raw === "root") continue;
+    return { kind: "group", id: raw };
+  }
+  return null;
+}
+
 function unwrapSave(
   result: SaveResult | boolean,
   fallback: string,
@@ -136,6 +154,8 @@ export function Dashboard({
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
   const draggingIdRef = useRef<string | null>(null);
+  const dragOriginRef = useRef<{ x: number; y: number } | null>(null);
+  const dragArmedRef = useRef(false);
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const [layout, setLayout] = useState<InventoryLayout>(() =>
     loadInventoryLayout(),
@@ -162,6 +182,15 @@ export function Dashboard({
     goToRoot,
     goToGroup,
   } = useInventory();
+
+  const itemsRef = useRef(items);
+  const moveItemRef = useRef(moveItem);
+  const openGroupRef = useRef(openGroup);
+  const goToRootRef = useRef(goToRoot);
+  itemsRef.current = items;
+  moveItemRef.current = moveItem;
+  openGroupRef.current = openGroup;
+  goToRootRef.current = goToRoot;
 
   const parentLabel = currentGroup?.name ?? "All connections";
   const searchActive = searchQuery.trim().length > 0;
@@ -269,92 +298,92 @@ export function Dashboard({
     setTransferError(null);
   }
 
-  function readDragItemId(): string | null {
-    return draggingIdRef.current;
-  }
-
-  function beginDrag(e: DragEvent, itemId: string) {
+  function beginPointerDrag(e: ReactPointerEvent, itemId: string) {
+    if (e.button !== 0) return;
+    e.preventDefault();
     e.stopPropagation();
+
     draggingIdRef.current = itemId;
-    // text/plain is required for HTML5 DnD in WebKit / Tauri.
-    e.dataTransfer.setData("text/plain", itemId);
-    e.dataTransfer.effectAllowed = "move";
+    dragOriginRef.current = { x: e.clientX, y: e.clientY };
+    dragArmedRef.current = false;
     setDraggingId(itemId);
     setDropTarget(null);
     clearTransferFeedback();
-  }
 
-  function endDrag() {
-    draggingIdRef.current = null;
-    setDraggingId(null);
-    setDropTarget(null);
-  }
+    const prevUserSelect = document.body.style.userSelect;
+    document.body.style.userSelect = "none";
+    document.body.dataset.foxDragging = "true";
 
-  function allowDropOn(
-    e: DragEvent,
-    target: DropTarget,
-    newParentId: string | null,
-  ) {
-    const itemId = readDragItemId();
-    if (!itemId) return;
+    const cleanup = () => {
+      document.body.style.userSelect = prevUserSelect;
+      delete document.body.dataset.foxDragging;
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", finish);
+      window.removeEventListener("pointercancel", finish);
+    };
 
-    // Never treat a group as a drop target for itself.
-    if (target.kind === "group" && target.id === itemId) return;
+    const onMove = (ev: PointerEvent) => {
+      const activeId = draggingIdRef.current;
+      if (!activeId) return;
 
-    const check = canMoveItem(items, itemId, newParentId);
-    if (!check.ok) {
-      e.dataTransfer.dropEffect = "none";
-      return;
-    }
-
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-    setDropTarget((current) => {
-      if (current?.kind === target.kind && current.id === target.id) {
-        return current;
+      const origin = dragOriginRef.current;
+      if (!dragArmedRef.current && origin) {
+        const dx = ev.clientX - origin.x;
+        const dy = ev.clientY - origin.y;
+        if (dx * dx + dy * dy < 25) return;
+        dragArmedRef.current = true;
       }
-      return target;
-    });
-  }
+      if (!dragArmedRef.current) return;
 
-  function leaveDropTarget(e: DragEvent, target: DropTarget) {
-    const current = e.currentTarget as HTMLElement;
-    const related = e.relatedTarget;
-    if (related instanceof Node && current.contains(related)) return;
-    setDropTarget((active) =>
-      active?.kind === target.kind && active.id === target.id ? null : active,
-    );
-  }
+      const target = dropTargetFromPoint(ev.clientX, ev.clientY);
+      if (!target || (target.kind === "group" && target.id === activeId)) {
+        setDropTarget(null);
+        return;
+      }
 
-  function finishDrop(e: DragEvent, newParentId: string | null) {
-    e.preventDefault();
-    e.stopPropagation();
-    const itemId = readDragItemId();
-    const moved = itemId ? items.find((item) => item.id === itemId) : undefined;
-    if (!itemId) {
-      endDrag();
-      setTransferError("Could not move item. Try dragging from the grip handle again.");
-      return;
-    }
+      const check = canMoveItem(itemsRef.current, activeId, target.id);
+      setDropTarget(check.ok ? target : null);
+    };
 
-    const result = moveItem(itemId, newParentId);
-    endDrag();
-    if (!result.ok) {
-      setTransferError(result.error);
-      return;
-    }
+    const finish = (ev: PointerEvent) => {
+      const activeId = draggingIdRef.current;
+      const armed = dragArmedRef.current;
+      const target = armed ? dropTargetFromPoint(ev.clientX, ev.clientY) : null;
 
-    const dest =
-      newParentId === null
-        ? "All"
-        : (items.find((item) => item.id === newParentId)?.name ?? "group");
-    setTransferMessage(
-      moved ? `Moved “${moved.name}” into ${dest}.` : "Item moved.",
-    );
+      draggingIdRef.current = null;
+      dragOriginRef.current = null;
+      dragArmedRef.current = false;
+      cleanup();
+      setDraggingId(null);
+      setDropTarget(null);
 
-    // Open the destination so the move is visible (host leaves current folder).
-    if (newParentId === null) goToRoot();
-    else openGroup(newParentId);
+      if (!activeId || !armed || !target) return;
+      if (target.kind === "group" && target.id === activeId) return;
+
+      const newParentId = target.id;
+      const moved = itemsRef.current.find((item) => item.id === activeId);
+      const result = moveItemRef.current(activeId, newParentId);
+      if (!result.ok) {
+        setTransferError(result.error);
+        return;
+      }
+
+      const dest =
+        newParentId === null
+          ? "All"
+          : (itemsRef.current.find((item) => item.id === newParentId)?.name ??
+            "group");
+      setTransferMessage(
+        moved ? `Moved “${moved.name}” into ${dest}.` : "Item moved.",
+      );
+
+      if (newParentId === null) goToRootRef.current();
+      else openGroupRef.current(newParentId);
+    };
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", finish);
+    window.addEventListener("pointercancel", finish);
   }
 
   function handleExport() {
@@ -688,14 +717,9 @@ export function Dashboard({
               ]
                 .filter(Boolean)
                 .join(" ")}
+              data-fox-drop="root"
+              data-fox-drop-kind="crumb"
               onClick={goToRoot}
-              onDragOver={(e) =>
-                allowDropOn(e, { kind: "crumb", id: null }, null)
-              }
-              onDragLeave={(e) =>
-                leaveDropTarget(e, { kind: "crumb", id: null })
-              }
-              onDrop={(e) => finishDrop(e, null)}
               title="Drop here to move to All"
             >
               All
@@ -720,14 +744,9 @@ export function Dashboard({
                   ]
                     .filter(Boolean)
                     .join(" ")}
+                  data-fox-drop={crumb.id}
+                  data-fox-drop-kind="crumb"
                   onClick={() => goToGroup(crumb.id)}
-                  onDragOver={(e) =>
-                    allowDropOn(e, { kind: "crumb", id: crumb.id }, crumb.id)
-                  }
-                  onDragLeave={(e) =>
-                    leaveDropTarget(e, { kind: "crumb", id: crumb.id })
-                  }
-                  onDrop={(e) => finishDrop(e, crumb.id)}
                   title={`Drop here to move into “${crumb.name}”`}
                 >
                   {crumb.name}
@@ -816,7 +835,7 @@ export function Dashboard({
             className={[
               "inventory__list",
               layout === "grid" ? "inventory__list--grid" : "",
-              draggingId ? "inventory__list--dnd" : "",
+              draggingId ? "inventory__list--dragging" : "",
             ]
               .filter(Boolean)
               .join(" ")}
@@ -829,6 +848,24 @@ export function Dashboard({
                 </span>
                 <p className="inventory__empty-title">No connections yet</p>
                 <p>Add a new group or host to get started.</p>
+                <div className="inventory__empty-actions">
+                  <button
+                    type="button"
+                    className="inventory__btn inventory__btn--primary"
+                    onClick={() => setCreateGroupOpen(true)}
+                  >
+                    <IconFolderPlus {...iconProps} aria-hidden />
+                    <span>New group</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="inventory__btn"
+                    onClick={() => setCreateHostOpen(true)}
+                  >
+                    <IconServerSpark {...iconProps} aria-hidden />
+                    <span>New host</span>
+                  </button>
+                </div>
               </div>
             ) : !hasVisibleItems ? (
               <div className="inventory__empty">
@@ -858,23 +895,15 @@ export function Dashboard({
                   .filter(Boolean)
                   .join(" ")}
                 role="listitem"
-                data-drop-group={group.id}
-                onDragOver={(e) =>
-                  allowDropOn(e, { kind: "group", id: group.id }, group.id)
-                }
-                onDragLeave={(e) =>
-                  leaveDropTarget(e, { kind: "group", id: group.id })
-                }
-                onDrop={(e) => finishDrop(e, group.id)}
+                data-fox-drop={group.id}
+                data-fox-drop-kind="group"
               >
                 <button
                   type="button"
                   className="inventory__item-grip"
                   title="Drag to move"
                   aria-label={`Drag ${group.name}`}
-                  draggable
-                  onDragStart={(e) => beginDrag(e, group.id)}
-                  onDragEnd={endDrag}
+                  onPointerDown={(e) => beginPointerDrag(e, group.id)}
                 >
                   <IconGripVertical {...actionIcon} aria-hidden />
                 </button>
@@ -943,9 +972,7 @@ export function Dashboard({
                   className="inventory__item-grip"
                   title="Drag to move"
                   aria-label={`Drag ${host.name}`}
-                  draggable
-                  onDragStart={(e) => beginDrag(e, host.id)}
-                  onDragEnd={endDrag}
+                  onPointerDown={(e) => beginPointerDrag(e, host.id)}
                 >
                   <IconGripVertical {...actionIcon} aria-hidden />
                 </button>

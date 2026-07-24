@@ -42,7 +42,7 @@ Termius-like SSH connection manager (in progress). Login → **Dashboard** inven
 - Dashboard: **search** current folder **and nested** groups/hosts (shows relative path), **list/grid** + **A–Z / Z–A** (`foxinal-inventory-layout`, `foxinal-inventory-sort`)
 - **Import / Export** JSON (`foxinal-inventory` v1): at root = whole inventory; inside a group = that group’s subtree / import into that group
 - **Double-click group** → enter folder; **double-click host** → new session **tab**
-- **Drag-and-drop**: grip `button[draggable]` (`text/plain` + `draggingIdRef`); list gets `--dnd` so group children ignore pointer hits; never `pointer-events:none` on the dragging row (cancels WebKit drag); drop opens destination; blocked for self/descendant / name clash / already there
+- **Drag-and-drop**: pointer-based (not HTML5 — unreliable in Tauri WebKit); grip `onPointerDown` → window `pointermove`/`pointerup` + `elementsFromPoint` on `[data-fox-drop]`; drop opens destination; blocked for self/descendant / name clash / already there
 - Password auth auto-types when SSH password prompt appears; temp keys cleaned via `cleanup_ssh_temp`
 - Local Terminal navbar opens another OS shell tab
 
