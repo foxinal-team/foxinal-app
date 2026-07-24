@@ -1,6 +1,6 @@
 # Foxinal
 
-Termius-like SSH connection manager for your desktop. Organize hosts in nested groups, open multi-tab local shells and SSH sessions, and keep everything on-device for now.
+SSH connection manager for your desktop. Organize hosts in nested groups, open multi-tab local shells and SSH sessions, and keep everything on-device for now.
 
 > **Status:** early / in progress (`v0.1.0`). Built with Tauri 2 + React.
 

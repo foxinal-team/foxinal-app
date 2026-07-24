@@ -106,7 +106,11 @@ export function SettingsDialog({
           </button>
         </div>
 
-        <div className="settings__nav" role="tablist" aria-label="Settings sections">
+        <div
+          className="settings__nav"
+          role="tablist"
+          aria-label="Settings sections"
+        >
           <button
             type="button"
             role="tab"
@@ -188,7 +192,11 @@ export function SettingsDialog({
 
               <fieldset className="dialog__fieldset">
                 <legend>Theme</legend>
-                <div className="settings__theme-grid" role="group" aria-label="Terminal theme">
+                <div
+                  className="settings__theme-grid"
+                  role="group"
+                  aria-label="Terminal theme"
+                >
                   {TERMINAL_THEMES.map((theme) => (
                     <button
                       key={theme.id}
@@ -229,7 +237,9 @@ export function SettingsDialog({
                 <span style={{ color: previewTheme.blue }}>~</span>
                 <span style={{ color: previewTheme.foreground }}>$ </span>
                 <span style={{ color: previewTheme.foreground }}>echo </span>
-                <span style={{ color: previewTheme.yellow }}>&quot;preview&quot;</span>
+                <span style={{ color: previewTheme.yellow }}>
+                  &quot;preview&quot;
+                </span>
               </p>
 
               <div className="dialog__actions">
@@ -306,8 +316,7 @@ export function SettingsDialog({
                 </button>
               </div>
               <p className="settings__hint">
-                Account management UI is ready — server sync arrives in a later
-                release.
+                server sync arrives in a later release.
               </p>
             </div>
           ) : null}
@@ -317,8 +326,7 @@ export function SettingsDialog({
               <p className="settings__about-name">{APP_NAME}</p>
               <p className="settings__about-version">v{APP_VERSION}</p>
               <p className="settings__hint">
-                Termius-like SSH connection manager for your local and remote
-                shells.
+                Manage local terminals and SSH hosts in one place.
               </p>
             </div>
           ) : null}

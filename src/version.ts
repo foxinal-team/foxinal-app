@@ -1,2 +1,4 @@
-export const APP_VERSION = __APP_VERSION__;
-export const APP_NAME = __APP_NAME__;
+import packageJson from "../package.json";
+
+export const APP_VERSION = packageJson.version;
+export const APP_NAME = packageJson.name;

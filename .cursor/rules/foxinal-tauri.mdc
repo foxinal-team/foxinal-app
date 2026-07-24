@@ -5,7 +5,7 @@ alwaysApply: true
 
 # Foxinal
 
-Termius-like SSH connection manager (in progress). Login → **Dashboard** inventory (nested groups + SSH hosts) + **multi-tab** Local Terminal / SSH sessions via PTY.
+SSH connection manager (in progress). Login → **Dashboard** inventory (nested groups + SSH hosts) + **multi-tab** Local Terminal / SSH sessions via PTY.
 
 ## Auth
 
@@ -29,7 +29,7 @@ Termius-like SSH connection manager (in progress). Login → **Dashboard** inven
 - `src/sessions.ts` — tab model (`createLocalTab` / `createHostTab`)
 - `src/settings/` — `SettingsDialog` (terminal prefs, account UI, about/version) + `terminalPrefs.ts`
 - `src/TerminalView.tsx` — local shell or SSH; SSH shows connecting / error+retry overlay; host container must not use padding (FitAddon ignores it and clips the last row — pad `.xterm` instead); reads terminal prefs
-- `src/version.ts` — app version from `package.json`
+- `src/version.ts` — app name/version imported from `package.json` (login + Settings about)
 - `src-tauri/src/lib.rs` — `default_shell`, `prepare_ssh_launch`, `cleanup_ssh_temp`
 - `.env` — `VITE_DEFAULT_USERNAME` / `VITE_DEFAULT_PASSWORD` (default `admin`/`admin`)
 
