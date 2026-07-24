@@ -69,10 +69,12 @@ pnpm dev            # frontend only — terminal/SSH fail without Tauri
 ## Release / CI
 
 - Workflow: `.github/workflows/release.yml` — macOS (arm64 + x64) + Linux x64 via `tauri-apps/tauri-action`
-- Trigger: push tag `v*` (e.g. `v0.1.0`) or Actions → **release** → Run workflow
-- Creates a **draft** GitHub Release with DMG / AppImage / deb / rpm; publish manually in the UI
-- Bump `version` in `package.json`, `src-tauri/tauri.conf.json`, and `src-tauri/Cargo.toml` before tagging
-- Repo Settings → Actions → General → Workflow permissions → **Read and write** (needed for release upload)
+- Trigger: push tag `v*` (e.g. `v0.2.0`) or Actions → **release** → Run workflow
+- Version is tag-driven: CI runs `scripts/set-version.mjs` so you do **not** need to edit version files by hand before a release
+- Manual/local sync if needed: `pnpm version:set 0.2.0` or `pnpm version:patch` (also updates `package.json`, `tauri.conf.json`, `Cargo.toml`)
+- `workflow_dispatch` with empty version → auto bump patch from current files
+- Creates a **draft** GitHub Release; publish manually in the UI
+- Prefer org/repo Workflow permissions → **Read and write**; if greyed out (org policy), add secret `RELEASE_TOKEN` (PAT with contents write) — workflow already uses it when set
 - No Apple signing/notarization in CI yet (users may need right-click → Open)
 
 ## Conventions

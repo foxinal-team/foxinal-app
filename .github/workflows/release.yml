@@ -1,7 +1,9 @@
 # Builds Foxinal for macOS (Apple Silicon + Intel) and Linux (x64),
 # then uploads installers to a draft GitHub Release.
 #
-# Trigger: push a version tag (v0.1.0) or run manually from Actions.
+# Version source of truth for releases:
+#   - tag push `v0.2.0` → syncs that version into all package files, then builds
+#   - workflow_dispatch → optional version input, or auto bump patch
 name: release
 
 on:
@@ -9,6 +11,11 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (e.g. 0.2.0). Leave empty to auto-bump patch."
+        required: false
+        type: string
 
 jobs:
   publish-tauri:
@@ -53,6 +60,28 @@ jobs:
           node-version: lts/*
           cache: pnpm
 
+      - name: Resolve release version
+        id: ver
+        run: |
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          elif [[ -n "${{ inputs.version }}" ]]; then
+            VERSION="${{ inputs.version }}"
+            VERSION="${VERSION#v}"
+          else
+            VERSION=""
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Resolved version input: ${VERSION:-<auto patch bump>}"
+
+      - name: Sync version into package files
+        run: |
+          if [[ -n "${{ steps.ver.outputs.version }}" ]]; then
+            node scripts/set-version.mjs "${{ steps.ver.outputs.version }}"
+          else
+            node scripts/set-version.mjs --bump patch
+          fi
+
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -66,10 +95,13 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
+      # Prefer RELEASE_TOKEN (PAT) when the org locks GITHUB_TOKEN to read-only.
+      # Create a classic PAT with `repo` (or fine-grained: Contents + Metadata read/write),
+      # then add it as repo secret RELEASE_TOKEN.
       - name: Build and upload to GitHub Release
         uses: tauri-apps/tauri-action@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
           # Avoid AppImage strip failures on newer glibc toolchains
           NO_STRIP: true
         with:

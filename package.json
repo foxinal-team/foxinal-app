@@ -7,7 +7,11 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "version:set": "node scripts/set-version.mjs",
+    "version:patch": "node scripts/set-version.mjs --bump patch",
+    "version:minor": "node scripts/set-version.mjs --bump minor",
+    "version:major": "node scripts/set-version.mjs --bump major"
   },
   "dependencies": {
     "@tabler/icons-react": "^3.45.0",

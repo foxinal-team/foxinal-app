@@ -11,6 +11,7 @@ import { BrandMark } from "./BrandMark";
 import { Dashboard } from "./Dashboard";
 import { ThemeToggle } from "./ThemeToggle";
 import { useTheme } from "./useTheme";
+import { APP_VERSION } from "./version";
 
 export type AppSession =
   | { kind: "account"; username: string }
@@ -165,6 +166,8 @@ function App() {
             Local data only — nothing leaves this app instance.
           </p>
         </div>
+
+        <p className="login__version">v{APP_VERSION}</p>
       </section>
     </main>
   );

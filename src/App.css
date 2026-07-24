@@ -199,11 +199,21 @@ textarea {
 
 .login__atmosphere,
 .dashboard__atmosphere {
+  z-index: 0;
+  overflow: hidden;
+  background: var(--mist);
+  pointer-events: none;
+}
+
+.login__atmosphere {
+  position: fixed;
+  inset: 0;
+}
+
+.dashboard__atmosphere {
   position: absolute;
   inset: 0;
   z-index: -1;
-  overflow: hidden;
-  background: var(--mist);
 }
 
 .login__atmosphere::before,
@@ -249,18 +259,27 @@ textarea {
 .login {
   position: relative;
   isolation: isolate;
-  min-height: 100vh;
-  display: grid;
-  place-items: center;
+  box-sizing: border-box;
+  height: 100%;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   padding: clamp(1.25rem, 4vw, 2.5rem);
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .login__panel {
+  position: relative;
+  z-index: 1;
   width: min(100%, 24.5rem);
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
   gap: var(--space-6);
+  margin-block: auto;
   animation: panel-rise 0.55s var(--ease) both;
 }
 
@@ -299,6 +318,17 @@ textarea {
   font-size: 1rem;
   font-weight: 500;
   letter-spacing: -0.01em;
+}
+
+.login__version {
+  margin: 1rem 0 0;
+  padding-bottom: 0.25rem;
+  color: var(--ink-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 
 .login__card {
@@ -2390,8 +2420,8 @@ textarea {
 
   .login {
     padding: 1rem;
-    align-items: flex-start;
     padding-top: 4.5rem;
+    padding-bottom: 1.5rem;
   }
 
   .login__panel {

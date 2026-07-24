@@ -315,7 +315,7 @@ export function SettingsDialog({
           {section === "about" ? (
             <div className="settings__section settings__section--about">
               <p className="settings__about-name">{APP_NAME}</p>
-              <p className="settings__about-version">Version {APP_VERSION}</p>
+              <p className="settings__about-version">v{APP_VERSION}</p>
               <p className="settings__hint">
                 Termius-like SSH connection manager for your local and remote
                 shells.
