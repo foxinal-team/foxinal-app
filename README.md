@@ -14,7 +14,7 @@ Builds are **not Apple-signed** yet (no Developer Program). Gatekeeper may say t
 
 1. Open the latest [Release](https://github.com/foxinal-team/foxinal-app/releases).
 2. Pick the right DMG for your Mac:
-   - **Apple Silicon** (M1 / M2 / M3 / M4): `foxinal_*_aarch64.dmg`
+   - **Apple Silicon** (M series): `foxinal_*_aarch64.dmg`
    - **Intel Mac**: `foxinal_*_x64.dmg`
 3. Open the DMG and drag **foxinal** into **Applications**.
 4. Clear the quarantine flag, then open the app normally (double-click):
