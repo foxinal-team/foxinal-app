@@ -2,11 +2,31 @@
 
 SSH connection manager for your desktop. Organize hosts in nested groups, open multi-tab local shells and SSH sessions, and keep everything on-device for now.
 
-> **Status:** early / in progress (`v0.1.0`). Built with Tauri 2 + React.
+> **Status:** early / in progress. Built with Tauri 2 + React. Grab installers from [Releases](https://github.com/foxinal-team/foxinal-app/releases).
 
 <p align="center">
   <img src="public/foxinal-icon.png" alt="Foxinal" width="96" height="96" />
 </p>
+
+## Download (macOS)
+
+Builds are **not Apple-signed** yet (no Developer Program). Gatekeeper may say the app is *damaged* or block it after download — that is normal for unsigned apps, not a corrupt file.
+
+1. Open the latest [Release](https://github.com/foxinal-team/foxinal-app/releases).
+2. Pick the right DMG for your Mac:
+   - **Apple Silicon** (M1 / M2 / M3 / M4): `foxinal_*_aarch64.dmg`
+   - **Intel Mac**: `foxinal_*_x64.dmg`
+3. Open the DMG and drag **foxinal** into **Applications**.
+4. Clear the quarantine flag, then open the app:
+
+```bash
+xattr -cr /Applications/foxinal.app
+open /Applications/foxinal.app
+```
+
+If macOS still blocks it: right-click the app → **Open** → **Open**.
+
+**Linux:** use the `.AppImage` (then `chmod +x` and run), or install the `.deb` / `.rpm` from the same release.
 
 ## Features
 

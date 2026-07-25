@@ -110,11 +110,18 @@ jobs:
           releaseBody: |
             Download the installer for your OS below.
 
-            - **macOS Apple Silicon**: `*-aarch64.dmg`
+            - **macOS Apple Silicon** (M1+): `*-aarch64.dmg`
             - **macOS Intel**: `*-x64.dmg`
             - **Linux**: `.AppImage` (portable) or `.deb` / `.rpm`
 
-            Builds are unsigned. On macOS, right-click the app → Open the first time.
+            macOS builds are **not Apple-signed**. If Gatekeeper says the app is damaged, after installing to Applications run:
+
+            ```
+            xattr -cr /Applications/foxinal.app
+            open /Applications/foxinal.app
+            ```
+
+            See the README **Download (macOS)** section for details.
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
