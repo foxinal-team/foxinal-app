@@ -118,10 +118,9 @@ jobs:
 
             ```
             xattr -cr /Applications/foxinal.app
-            open /Applications/foxinal.app
             ```
 
-            See the README **Download (macOS)** section for details.
+            Then open the app normally. See the README **Download (macOS)** section for details.
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}

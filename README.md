@@ -17,11 +17,10 @@ Builds are **not Apple-signed** yet (no Developer Program). Gatekeeper may say t
    - **Apple Silicon** (M1 / M2 / M3 / M4): `foxinal_*_aarch64.dmg`
    - **Intel Mac**: `foxinal_*_x64.dmg`
 3. Open the DMG and drag **foxinal** into **Applications**.
-4. Clear the quarantine flag, then open the app:
+4. Clear the quarantine flag, then open the app normally (double-click):
 
 ```bash
 xattr -cr /Applications/foxinal.app
-open /Applications/foxinal.app
 ```
 
 If macOS still blocks it: right-click the app → **Open** → **Open**.
