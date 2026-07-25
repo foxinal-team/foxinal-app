@@ -11,13 +11,13 @@ import {
   IconTerminal2,
   IconX,
 } from "@tabler/icons-react";
-import { hostSummary } from "./inventory/types";
-import type { TerminalSession } from "./sessions";
+import { hostSummary } from "@/inventory/types";
+import type { TerminalSession } from "@/lib/sessions";
 import {
   fontFamilyForId,
   resolveTerminalTheme,
   type TerminalPrefs,
-} from "./settings/terminalPrefs";
+} from "@/settings/terminalPrefs";
 import "@xterm/xterm/css/xterm.css";
 
 export type { TerminalSession };
@@ -406,6 +406,7 @@ export function TerminalView({
         active ? "terminal-page" : "terminal-page terminal-page--inactive"
       }
       aria-hidden={!active}
+      inert={!active ? true : undefined}
     >
       <div className="terminal-page__toolbar">
         <div className="terminal-page__identity">
@@ -425,6 +426,7 @@ export function TerminalView({
           <button
             type="button"
             className="terminal-page__close"
+            aria-label={`Close ${title}`}
             onClick={onCloseSession}
           >
             <IconX size={16} stroke={1.75} aria-hidden />

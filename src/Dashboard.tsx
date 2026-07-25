@@ -25,7 +25,6 @@ import {
   IconUpload,
   IconX,
 } from "@tabler/icons-react";
-import { BrandMark } from "./BrandMark";
 import {
   type PointerEvent as ReactPointerEvent,
   useEffect,
@@ -33,6 +32,8 @@ import {
   useRef,
   useState,
 } from "react";
+import { BrandMark } from "@/components/BrandMark";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { ConfirmDeleteDialog } from "./inventory/ConfirmDeleteDialog";
 import { HostDialog } from "./inventory/HostDialog";
 import { NameDialog } from "./inventory/NameDialog";
@@ -75,9 +76,8 @@ import {
   createHostTab,
   createLocalTab,
   type SessionTab,
-} from "./sessions";
-import { TerminalView } from "./TerminalView";
-import { ThemeToggle } from "./ThemeToggle";
+} from "@/lib/sessions";
+import { TerminalView } from "@/components/TerminalView";
 import { SftpView } from "./sftp/SftpView";
 
 type DashboardView = "dashboard" | "session" | "sftp";
@@ -487,6 +487,7 @@ export function Dashboard({
                   ? "dashboard__link dashboard__link--active"
                   : "dashboard__link"
               }
+              aria-current={view === "dashboard" ? "page" : undefined}
               onClick={() => setView("dashboard")}
             >
               <IconFolders {...iconProps} aria-hidden />
@@ -499,6 +500,7 @@ export function Dashboard({
                   ? "dashboard__link dashboard__link--active"
                   : "dashboard__link"
               }
+              aria-current={view === "sftp" ? "page" : undefined}
               onClick={() => setView("sftp")}
             >
               <IconFolderShare {...iconProps} aria-hidden />
@@ -510,6 +512,11 @@ export function Dashboard({
                 view === "session" && activeTab?.session.kind === "local"
                   ? "dashboard__link dashboard__link--active"
                   : "dashboard__link"
+              }
+              aria-current={
+                view === "session" && activeTab?.session.kind === "local"
+                  ? "page"
+                  : undefined
               }
               onClick={openLocalTerminal}
             >
@@ -547,6 +554,7 @@ export function Dashboard({
               type="button"
               className="dashboard__signout"
               onClick={onLock}
+              aria-label="Lock Foxinal"
               title="Lock Foxinal"
             >
               <IconLogout {...iconProps} aria-hidden />
@@ -564,8 +572,28 @@ export function Dashboard({
               : "session-workspace session-workspace--parked"
           }
         >
-          <div className="session-tabs" role="tablist" aria-label="Open sessions">
-            {tabs.map((tab) => {
+          <div
+            className="session-tabs"
+            role="tablist"
+            aria-label="Open sessions"
+            onKeyDown={(e) => {
+              if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+              if (tabs.length === 0) return;
+              e.preventDefault();
+              const currentIndex = Math.max(
+                0,
+                tabs.findIndex((tab) => tab.id === activeTab?.id),
+              );
+              const delta = e.key === "ArrowRight" ? 1 : -1;
+              const next =
+                tabs[(currentIndex + delta + tabs.length) % tabs.length];
+              if (!next) return;
+              selectTab(next.id);
+              window.requestAnimationFrame(() => {
+                document.getElementById(`session-tab-${next.id}`)?.focus();
+              });
+            }}
+          >            {tabs.map((tab) => {
               const selected = tab.id === activeTab?.id && view === "session";
               return (
                 <div
@@ -578,8 +606,11 @@ export function Dashboard({
                 >
                   <button
                     type="button"
+                    id={`session-tab-${tab.id}`}
                     role="tab"
                     aria-selected={selected}
+                    aria-controls={`session-panel-${tab.id}`}
+                    tabIndex={selected ? 0 : -1}
                     className="session-tabs__button"
                     title={tab.subtitle}
                     onClick={() => selectTab(tab.id)}
@@ -610,19 +641,26 @@ export function Dashboard({
             })}
           </div>
 
-          <div className="session-panes" aria-hidden={view !== "session"}>
+          <div
+            className="session-panes"
+            aria-hidden={view !== "session"}
+            inert={view !== "session" ? true : undefined}
+          >
             {tabs.map((tab) => {
               const paneActive = tab.id === activeTab?.id && view === "session";
               return (
                 <div
                   key={tab.id}
+                  id={`session-panel-${tab.id}`}
                   className={
                     paneActive
                       ? "session-pane session-pane--active"
                       : "session-pane"
                   }
                   role="tabpanel"
+                  aria-labelledby={`session-tab-${tab.id}`}
                   aria-hidden={!paneActive}
+                  inert={!paneActive ? true : undefined}
                 >
                   <TerminalView
                     session={tab.session}
@@ -944,7 +982,8 @@ export function Dashboard({
                   type="button"
                   className="inventory__item-grip"
                   title="Drag to move"
-                  aria-label={`Drag ${group.name}`}
+                  aria-label={`Drag ${group.name} to move`}
+                  tabIndex={-1}
                   onPointerDown={(e) => beginPointerDrag(e, group.id)}
                 >
                   <IconGripVertical {...actionIcon} aria-hidden />
@@ -952,8 +991,9 @@ export function Dashboard({
                 <button
                   type="button"
                   className="inventory__item-main"
-                  title="Double-click to open"
-                  onDoubleClick={() => openGroup(group.id)}
+                  title="Open group"
+                  aria-label={`Open group ${group.name}`}
+                  onClick={() => openGroup(group.id)}
                 >
                   <span className="inventory__item-icon" aria-hidden>
                     <IconFolder {...typeIcon} />
@@ -1013,7 +1053,8 @@ export function Dashboard({
                   type="button"
                   className="inventory__item-grip"
                   title="Drag to move"
-                  aria-label={`Drag ${host.name}`}
+                  aria-label={`Drag ${host.name} to move`}
+                  tabIndex={-1}
                   onPointerDown={(e) => beginPointerDrag(e, host.id)}
                 >
                   <IconGripVertical {...actionIcon} aria-hidden />
@@ -1021,8 +1062,9 @@ export function Dashboard({
                 <button
                   type="button"
                   className="inventory__item-main"
-                  title="Double-click to connect"
-                  onDoubleClick={() => connectToHost(host)}
+                  title="Connect"
+                  aria-label={`Connect to ${host.name}`}
+                  onClick={() => connectToHost(host)}
                 >
                   <span
                     className="inventory__item-icon inventory__item-icon--host"
@@ -1079,6 +1121,7 @@ export function Dashboard({
           }
           hidden={view !== "sftp"}
           aria-hidden={view !== "sftp"}
+          inert={view !== "sftp" ? true : undefined}
         >
           <SftpView
             items={items}
@@ -1107,7 +1150,7 @@ export function Dashboard({
         title="Rename group"
         lede={`Rename “${renameGroupTarget?.name ?? ""}”`}
         submitLabel="Save"
-        placeholder="e.g. Production"
+        placeholder="Group name"
         emptyError="Enter a group name."
         saveError="Could not save."
         initialName={renameGroupTarget?.name ?? ""}

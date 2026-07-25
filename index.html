@@ -19,6 +19,12 @@
             ? stored
             : "system";
         document.documentElement.dataset.theme = theme;
+        const prefersDark = window.matchMedia(
+          "(prefers-color-scheme: dark)",
+        ).matches;
+        const isDark =
+          theme === "dark" || (theme === "system" && prefersDark);
+        document.documentElement.classList.toggle("dark", isDark);
       })();
     </script>
   </head>

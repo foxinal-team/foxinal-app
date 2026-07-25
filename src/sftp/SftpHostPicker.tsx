@@ -20,6 +20,7 @@ import {
 } from "../inventory/types";
 
 type SftpHostPickerProps = {
+  id?: string;
   items: InventoryItem[];
   connecting: boolean;
   onSelectLocal: () => void;
@@ -30,6 +31,7 @@ type SftpHostPickerProps = {
 const iconSm = { size: 16, stroke: 1.75 } as const;
 
 export function SftpHostPicker({
+  id,
   items,
   connecting,
   onSelectLocal,
@@ -98,9 +100,10 @@ export function SftpHostPicker({
 
   return (
     <div
+      id={id}
       ref={rootRef}
       className="sftp-pane__picker"
-      role="listbox"
+      role="dialog"
       aria-label="Choose connection source"
     >
       <button
@@ -191,8 +194,9 @@ export function SftpHostPicker({
                   key={group.id}
                   type="button"
                   className="sftp-pane__picker-item sftp-pane__picker-item--group"
-                  title="Double-click to open"
-                  onDoubleClick={() => {
+                  title="Open group"
+                  aria-label={`Open group ${group.name}`}
+                  onClick={() => {
                     setFolderId(group.id);
                     setSearchQuery("");
                   }}
@@ -200,7 +204,7 @@ export function SftpHostPicker({
                   <IconFolder {...iconSm} aria-hidden />
                   <span>
                     <strong>{group.name}</strong>
-                    <em>{location ? location : "Group · double-click to open"}</em>
+                    <em>{location ? location : "Group · open to browse"}</em>
                   </span>
                   <IconChevronRight
                     className="sftp-pane__picker-chevron"

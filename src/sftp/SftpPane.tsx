@@ -363,6 +363,8 @@ export function SftpPane({
             className="sftp-pane__source-btn"
             onClick={() => setPickerOpen((v) => !v)}
             aria-expanded={pickerOpen}
+            aria-haspopup="dialog"
+            aria-controls={`sftp-picker-${side}`}
             disabled={showOverlay}
           >
             {connection.kind === "local" && !connectStatus ? (
@@ -378,6 +380,7 @@ export function SftpPane({
           </button>
           {pickerOpen ? (
             <SftpHostPicker
+              id={`sftp-picker-${side}`}
               items={items}
               connecting={showOverlay}
               onSelectLocal={() => {
@@ -397,6 +400,7 @@ export function SftpPane({
             type="button"
             className="sftp-pane__icon-btn"
             title="Home"
+            aria-label="Go to home folder"
             disabled={showOverlay}
             onClick={() => {
               onPathChange("");
@@ -422,6 +426,7 @@ export function SftpPane({
             type="button"
             className="sftp-pane__icon-btn"
             title="Up"
+            aria-label="Go to parent folder"
             disabled={showOverlay || !showParentRow}
             onClick={() => void goUp()}
           >
@@ -431,6 +436,7 @@ export function SftpPane({
             type="button"
             className="sftp-pane__icon-btn"
             title="Refresh"
+            aria-label="Refresh folder"
             disabled={showOverlay}
             onClick={() => void loadPath(path, { soft: true })}
           >
@@ -440,6 +446,8 @@ export function SftpPane({
             type="button"
             className="sftp-pane__icon-btn"
             title={showHidden ? "Hide hidden files" : "Show hidden files"}
+            aria-label={showHidden ? "Hide hidden files" : "Show hidden files"}
+            aria-pressed={showHidden}
             disabled={showOverlay}
             onClick={onToggleHidden}
           >
@@ -453,6 +461,7 @@ export function SftpPane({
             type="button"
             className="sftp-pane__icon-btn"
             title="New folder"
+            aria-label="New folder"
             disabled={showOverlay || !path}
             onClick={() => setMkdirOpen(true)}
           >
@@ -462,6 +471,7 @@ export function SftpPane({
             type="button"
             className="sftp-pane__icon-btn sftp-pane__icon-btn--danger"
             title="Delete"
+            aria-label="Delete selected"
             disabled={showOverlay || selected.length !== 1 || deleting}
             onClick={requestDeleteSelected}
           >
@@ -555,9 +565,9 @@ export function SftpPane({
           role="list"
         >
           {!loading && !showParentRow && visible.length === 0 ? (
-            <p className="sftp-pane__empty">
-              {showOverlay ? "" : "This folder is empty."}
-            </p>
+            showOverlay ? null : (
+              <p className="sftp-pane__empty">This folder is empty.</p>
+            )
           ) : (
             <>
               {showParentRow ? (
@@ -605,7 +615,8 @@ export function SftpPane({
                     type="button"
                     className="sftp-pane__grip"
                     title="Drag to other pane to copy"
-                    aria-label={`Drag ${entry.name}`}
+                    aria-label={`Drag ${entry.name} to copy`}
+                    tabIndex={-1}
                     disabled={loading}
                     onPointerDown={(e) => {
                       const batch =
@@ -624,13 +635,25 @@ export function SftpPane({
                     type="button"
                     className="sftp-pane__row-main"
                     disabled={loading}
+                    aria-label={
+                      entry.kind === "dir"
+                        ? `${entry.name}, folder. Select with click, open with Enter`
+                        : `${entry.name}, file`
+                    }
+                    aria-pressed={isSelected}
                     onClick={(e) =>
                       toggleSelect(entry.path, e.metaKey || e.ctrlKey)
                     }
                     onDoubleClick={() => void openEntry(entry)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        void openEntry(entry);
+                      }
+                    }}
                     title={
                       entry.kind === "dir"
-                        ? "Double-click to open"
+                        ? "Click to select · Enter or double-click to open"
                         : entry.name
                     }
                   >

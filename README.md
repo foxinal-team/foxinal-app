@@ -45,9 +45,19 @@ If macOS still blocks it: right-click the app → **Open** → **Open**.
 | Layer | Tech |
 |-------|------|
 | App shell | [Tauri 2](https://tauri.app/) + Rust |
-| UI | React 19, TypeScript, Vite 7 |
+| UI | React 19, TypeScript, Vite 7, [Tailwind CSS v4](https://tailwindcss.com/), [shadcn/ui](https://ui.shadcn.com/) |
 | Terminal | xterm.js + `tauri-plugin-pty` |
 | Package manager | [pnpm](https://pnpm.io/) |
+
+### Frontend layout
+
+- `src/components/ui/` — shadcn primitives (add more with `pnpm dlx shadcn@latest add <name>`)
+- `src/components/` — shared UI (`BrandMark`, `ThemeToggle`, `TerminalView`)
+- `src/hooks/` — e.g. `useTheme` (syncs `data-theme` + `.dark` for Tailwind)
+- `src/index.css` — Tailwind + Foxinal design tokens
+- `src/styles/features.css` — liquid-glass feature layouts (`@layer components`)
+- Feature modules: `inventory/`, `settings/`, `sftp/`, `security/`
+- Path alias: `@/` → `src/`
 
 ## Prerequisites
 

@@ -8,9 +8,37 @@ import {
   IconUser,
   IconX,
 } from "@tabler/icons-react";
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
 import type { InventoryItem } from "../inventory/types";
-import { hasMasterPassword, MASTER_PASSWORD_MIN_LENGTH } from "../security/masterPassword";
+import {
+  hasMasterPassword,
+  MASTER_PASSWORD_MIN_LENGTH,
+} from "../security/masterPassword";
 import {
   AUTO_LOCK_MINUTE_OPTIONS,
   saveSecurityPrefs,
@@ -35,6 +63,10 @@ import {
 } from "./terminalPrefs";
 
 type SettingsSection = "terminal" | "account" | "security" | "about";
+
+/** Keep Foxinal segmented control inside the rail (reset shadcn Tabs chrome). */
+const SETTINGS_TAB_TRIGGER_CLASS =
+  "settings__nav-btn !h-auto min-h-0 min-w-[4.5rem] flex-1 shrink rounded-[calc(var(--radius-md)-0.2rem)] border-0 bg-transparent px-2 py-[0.55rem] text-[0.78rem] leading-none font-semibold text-[var(--ink-muted)] shadow-none after:!hidden after:content-none hover:bg-transparent hover:text-[var(--ink)] data-active:!bg-[var(--surface-solid)] data-active:!text-[var(--ink)] data-active:!shadow-[var(--shadow-sm)] dark:data-active:!border-transparent dark:data-active:!bg-[var(--surface-solid)] dark:data-active:!text-[var(--ink)]";
 
 type SettingsDialogProps = {
   open: boolean;
@@ -69,9 +101,12 @@ export function SettingsDialog({
   const [currentPassword, setCurrentPassword] = useState("");
   const [nextPassword, setNextPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [removePassword, setRemovePassword] = useState("");
   const [securityError, setSecurityError] = useState<string | null>(null);
   const [securityMessage, setSecurityMessage] = useState<string | null>(null);
   const [securityBusy, setSecurityBusy] = useState(false);
+  const [bodyHeight, setBodyHeight] = useState<number | undefined>(undefined);
+  const bodyInnerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -81,11 +116,26 @@ export function SettingsDialog({
     setCurrentPassword("");
     setNextPassword("");
     setConfirmPassword("");
+    setRemovePassword("");
     setSecurityError(null);
     setSecurityMessage(null);
+    setBodyHeight(undefined);
   }, [open, terminalPrefs]);
 
-  if (!open) return null;
+  useLayoutEffect(() => {
+    if (!open) return;
+    const node = bodyInnerRef.current;
+    if (!node) return;
+
+    const syncHeight = () => {
+      setBodyHeight(node.scrollHeight);
+    };
+
+    syncHeight();
+    const observer = new ResizeObserver(syncHeight);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [open, section, securityOn, securityError, securityMessage]);
 
   const dirty =
     draft.fontId !== terminalPrefs.fontId ||
@@ -114,6 +164,7 @@ export function SettingsDialog({
     setCurrentPassword("");
     setNextPassword("");
     setConfirmPassword("");
+    setRemovePassword("");
   }
 
   function updateSecurityPrefs(patch: Partial<SecurityPrefs>) {
@@ -126,6 +177,11 @@ export function SettingsDialog({
     e.preventDefault();
     setSecurityError(null);
     setSecurityMessage(null);
+
+    if (securityOn && !currentPassword) {
+      setSecurityError("Enter your current master password.");
+      return;
+    }
 
     if (nextPassword !== confirmPassword) {
       setSecurityError("New passwords do not match.");
@@ -159,20 +215,20 @@ export function SettingsDialog({
     }
   }
 
-  async function handleRemoveMasterPassword(e: FormEvent) {
-    e.preventDefault();
+  async function handleRemoveMasterPassword(e?: FormEvent) {
+    e?.preventDefault();
     setSecurityError(null);
     setSecurityMessage(null);
 
-    if (!currentPassword) {
-      setSecurityError("Enter your current master password to remove it.");
+    if (!removePassword) {
+      setSecurityError("Enter your master password to remove it.");
       return;
     }
 
     setSecurityBusy(true);
     try {
       const result = await disableMasterPassword(
-        currentPassword,
+        removePassword,
         inventoryItems,
       );
       if (!result.ok) {
@@ -196,133 +252,130 @@ export function SettingsDialog({
   }
 
   return (
-    <div className="dialog" role="presentation" onClick={onClose}>
-      <div
-        className="dialog__panel dialog__panel--settings"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="settings-dialog-title"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="settings__header">
-          <div className="dialog__heading">
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        if (!v && !securityBusy) onClose();
+      }}
+    >
+      <DialogContent
+        size="settings"
+        showCloseButton={false}
+        className="gap-0"
+        aria-busy={securityBusy || undefined}
+      >        <div className="settings__header">
+          <DialogHeader>
             <span className="dialog__icon">
               <IconSettings size={22} stroke={1.75} aria-hidden />
             </span>
             <div>
-              <h2 id="settings-dialog-title" className="dialog__title">
-                Settings
-              </h2>
-              <p className="dialog__lede">Preferences for this app instance.</p>
+              <DialogTitle>Settings</DialogTitle>
+              <DialogDescription>
+                Preferences for this app instance.
+              </DialogDescription>
             </div>
-          </div>
-          <button
+          </DialogHeader>
+          <Button
             type="button"
-            className="settings__close"
+            variant="ghost"
+            size="icon-sm"
+            className="settings__close size-8 shrink-0 rounded-[var(--radius-xs)] text-[var(--ink-muted)] hover:bg-[color-mix(in_srgb,var(--ink)_6%,transparent)] hover:text-[var(--ink)]"
             aria-label="Close settings"
             onClick={onClose}
           >
             <IconX size={18} stroke={1.75} aria-hidden />
-          </button>
+          </Button>
         </div>
 
-        <div
-          className="settings__nav"
-          role="tablist"
-          aria-label="Settings sections"
+        <Tabs
+          value={section}
+          onValueChange={(value) => setSection(value as SettingsSection)}
+          className="flex min-h-0 flex-1 flex-col gap-0"
         >
-          <button
-            type="button"
-            role="tab"
-            aria-selected={section === "terminal"}
-            className={
-              section === "terminal"
-                ? "settings__nav-btn settings__nav-btn--active"
-                : "settings__nav-btn"
-            }
-            onClick={() => setSection("terminal")}
+          <TabsList
+            aria-label="Settings sections"
+            className="settings__nav !mt-4 !mb-[0.95rem] !flex !h-auto min-h-0 w-full flex-wrap items-stretch justify-stretch gap-1 overflow-hidden rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--field-bg)] !p-[0.2rem] group-data-horizontal/tabs:!h-auto"
           >
-            <IconTerminal2 size={16} stroke={1.75} aria-hidden />
-            <span>Terminal</span>
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={section === "account"}
-            className={
-              section === "account"
-                ? "settings__nav-btn settings__nav-btn--active"
-                : "settings__nav-btn"
-            }
-            onClick={() => setSection("account")}
-          >
-            <IconUser size={16} stroke={1.75} aria-hidden />
-            <span>Account</span>
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={section === "security"}
-            className={
-              section === "security"
-                ? "settings__nav-btn settings__nav-btn--active"
-                : "settings__nav-btn"
-            }
-            onClick={() => setSection("security")}
-          >
-            <IconShieldLock size={16} stroke={1.75} aria-hidden />
-            <span>Security</span>
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={section === "about"}
-            className={
-              section === "about"
-                ? "settings__nav-btn settings__nav-btn--active"
-                : "settings__nav-btn"
-            }
-            onClick={() => setSection("about")}
-          >
-            <IconInfoCircle size={16} stroke={1.75} aria-hidden />
-            <span>About</span>
-          </button>
-        </div>
+            <TabsTrigger value="terminal" className={SETTINGS_TAB_TRIGGER_CLASS}>
+              <IconTerminal2 size={16} stroke={1.75} aria-hidden />
+              <span>Terminal</span>
+            </TabsTrigger>
+            <TabsTrigger value="account" className={SETTINGS_TAB_TRIGGER_CLASS}>
+              <IconUser size={16} stroke={1.75} aria-hidden />
+              <span>Account</span>
+            </TabsTrigger>
+            <TabsTrigger value="security" className={SETTINGS_TAB_TRIGGER_CLASS}>
+              <IconShieldLock size={16} stroke={1.75} aria-hidden />
+              <span>Security</span>
+            </TabsTrigger>
+            <TabsTrigger value="about" className={SETTINGS_TAB_TRIGGER_CLASS}>
+              <IconInfoCircle size={16} stroke={1.75} aria-hidden />
+              <span>About</span>
+            </TabsTrigger>
+          </TabsList>
 
-        <div className="settings__body">
-          {section === "terminal" ? (
-            <div className="settings__section">
-              <label className="dialog__field" htmlFor="term-font">
-                <span>Font</span>
-                <select
-                  id="term-font"
-                  value={draft.fontId}
-                  onChange={(e) => updateDraft("fontId", e.currentTarget.value)}
+          <div
+            className={
+              bodyHeight !== undefined
+                ? "settings__body settings__body--ready"
+                : "settings__body"
+            }
+            style={
+              bodyHeight !== undefined ? { height: bodyHeight } : undefined
+            }
+          >
+            <div ref={bodyInnerRef} className="settings__body-inner">
+              <TabsContent
+                value="terminal"
+                className="settings__section settings__section--animated mt-0"
+              >
+              <div className="flex flex-col gap-1.5">
+                <Label
+                  htmlFor="term-font"
+                  className="text-[0.78rem] font-semibold"
                 >
-                  {TERMINAL_FONTS.map((font) => (
-                    <option key={font.id} value={font.id}>
-                      {font.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                  Font
+                </Label>
+                <Select
+                  value={draft.fontId}
+                  onValueChange={(value) => updateDraft("fontId", value)}
+                >
+                  <SelectTrigger
+                    id="term-font"
+                    className="!h-10 w-full min-w-0 rounded-[var(--radius-sm)] border-[var(--line)] bg-[var(--field-bg)]"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TERMINAL_FONTS.map((font) => (
+                      <SelectItem key={font.id} value={font.id}>
+                        {font.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-              <label className="dialog__field" htmlFor="term-size">
-                <span>
-                  Size <em className="settings__value">{draft.fontSize}px</em>
-                </span>
-                <input
+              <div className="flex flex-col gap-2.5">
+                <Label
+                  htmlFor="term-size"
+                  className="text-[0.78rem] font-semibold"
+                >
+                  Size{" "}
+                  <em className="settings__value">{draft.fontSize}px</em>
+                </Label>
+                <Slider
                   id="term-size"
-                  type="range"
                   min={TERMINAL_FONT_SIZE_MIN}
                   max={TERMINAL_FONT_SIZE_MAX}
                   step={1}
-                  value={draft.fontSize}
-                  onChange={(e) =>
-                    updateDraft("fontSize", Number(e.currentTarget.value))
+                  value={[draft.fontSize]}
+                  onValueChange={(value) =>
+                    updateDraft("fontSize", value[0] ?? draft.fontSize)
                   }
+                  className="py-1"
                 />
-              </label>
+              </div>
 
               <fieldset className="dialog__fieldset">
                 <legend>Theme</legend>
@@ -340,6 +393,7 @@ export function SettingsDialog({
                           ? "settings__theme-option settings__theme-option--active"
                           : "settings__theme-option"
                       }
+                      aria-pressed={draft.theme === theme.id}
                       onClick={() =>
                         updateDraft("theme", theme.id as TerminalThemeId)
                       }
@@ -377,29 +431,24 @@ export function SettingsDialog({
               </p>
 
               <div className="dialog__actions">
-                <button
-                  type="button"
-                  className="dialog__cancel"
-                  onClick={resetTerminal}
-                >
+                <Button type="button" variant="outline" onClick={resetTerminal}>
                   <span>Reset</span>
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
-                  className="dialog__submit"
                   disabled={!dirty}
                   onClick={applyTerminal}
                 >
                   <IconCheck size={16} stroke={1.75} aria-hidden />
                   <span>Apply</span>
-                </button>
+                </Button>
               </div>
-            </div>
-          ) : null}
+            </TabsContent>
 
-          {section === "account" ? (
-            <div className="settings__section">
-              <div className="settings__account-card">
+            <TabsContent
+              value="account"
+              className="settings__section settings__section--animated mt-0"
+            >              <div className="settings__account-card">
                 <span className="settings__account-icon" aria-hidden>
                   <IconLock size={18} stroke={1.75} />
                 </span>
@@ -415,17 +464,20 @@ export function SettingsDialog({
                 release. Use the Security tab for master password and lock
                 behavior.
               </p>
-            </div>
-          ) : null}
+            </TabsContent>
 
-          {section === "security" ? (
-            <div className="settings__section">
-              <div className="settings__security-head">
+            <TabsContent
+              value="security"
+              className="settings__section settings__section--animated mt-0"
+            >              <div className="settings__security-head">
                 <span className="settings__security-icon" aria-hidden>
                   <IconShieldLock size={18} stroke={1.75} />
                 </span>
                 <div>
-                  <h3 id="security-heading" className="settings__security-title">
+                  <h3
+                    id="security-heading"
+                    className="settings__security-title"
+                  >
                     Master password
                   </h3>
                   <p className="settings__security-meta">
@@ -441,9 +493,14 @@ export function SettingsDialog({
                 onSubmit={handleSetMasterPassword}
               >
                 {securityOn ? (
-                  <label className="dialog__field" htmlFor="mp-current">
-                    <span>Current master password</span>
-                    <input
+                  <div className="flex flex-col gap-1.5">
+                    <Label
+                      htmlFor="mp-current"
+                      className="text-[0.78rem] font-semibold"
+                    >
+                      Current master password
+                    </Label>
+                    <Input
                       id="mp-current"
                       type="password"
                       autoComplete="current-password"
@@ -451,16 +508,20 @@ export function SettingsDialog({
                       onChange={(e) =>
                         setCurrentPassword(e.currentTarget.value)
                       }
+                      placeholder="••••••••"
                       disabled={securityBusy}
                     />
-                  </label>
+                  </div>
                 ) : null}
 
-                <label className="dialog__field" htmlFor="mp-new">
-                  <span>
+                <div className="flex flex-col gap-1.5">
+                  <Label
+                    htmlFor="mp-new"
+                    className="text-[0.78rem] font-semibold"
+                  >
                     {securityOn ? "New master password" : "Master password"}
-                  </span>
-                  <input
+                  </Label>
+                  <Input
                     id="mp-new"
                     type="password"
                     autoComplete="new-password"
@@ -469,39 +530,37 @@ export function SettingsDialog({
                     placeholder={`At least ${MASTER_PASSWORD_MIN_LENGTH} characters`}
                     disabled={securityBusy}
                   />
-                </label>
+                </div>
 
-                <label className="dialog__field" htmlFor="mp-confirm">
-                  <span>Confirm master password</span>
-                  <input
+                <div className="flex flex-col gap-1.5">
+                  <Label
+                    htmlFor="mp-confirm"
+                    className="text-[0.78rem] font-semibold"
+                  >
+                    Confirm master password
+                  </Label>
+                  <Input
                     id="mp-confirm"
                     type="password"
                     autoComplete="new-password"
                     value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.currentTarget.value)}
+                    onChange={(e) =>
+                      setConfirmPassword(e.currentTarget.value)
+                    }
+                    placeholder="••••••••"
                     disabled={securityBusy}
                   />
-                </label>
-
-                {securityError ? (
-                  <p
-                    className="inventory__transfer inventory__transfer--error"
-                    role="alert"
-                  >
-                    {securityError}
-                  </p>
-                ) : null}
-                {securityMessage ? (
-                  <p className="inventory__transfer" role="status">
-                    {securityMessage}
-                  </p>
-                ) : null}
+                </div>
 
                 <div className="settings__account-actions">
-                  <button
+                  <Button
                     type="submit"
-                    className="dialog__submit"
-                    disabled={securityBusy || !nextPassword || !confirmPassword}
+                    disabled={
+                      securityBusy ||
+                      !nextPassword ||
+                      !confirmPassword ||
+                      (securityOn && !currentPassword)
+                    }
                   >
                     <IconCheck size={16} stroke={1.75} aria-hidden />
                     <span>
@@ -511,9 +570,23 @@ export function SettingsDialog({
                           ? "Update password"
                           : "Set master password"}
                     </span>
-                  </button>
+                  </Button>
                 </div>
               </form>
+
+              {securityError ? (
+                <p
+                  className="inventory__transfer inventory__transfer--error"
+                  role="alert"
+                >
+                  {securityError}
+                </p>
+              ) : null}
+              {securityMessage ? (
+                <p className="inventory__transfer" role="status">
+                  {securityMessage}
+                </p>
+              ) : null}
 
               <div
                 className={
@@ -529,87 +602,135 @@ export function SettingsDialog({
                     : "Available after you set a master password."}
                 </p>
 
-                <label className="settings__toggle">
-                  <input
-                    type="checkbox"
+                <div className="flex items-center justify-between gap-3">
+                  <Label
+                    htmlFor="auto-lock-enabled"
+                    className="text-[0.8125rem] font-semibold"
+                  >
+                    Auto-lock after inactivity
+                  </Label>
+                  <Switch
+                    id="auto-lock-enabled"
                     checked={securityPrefs.autoLockEnabled}
                     disabled={!securityOn}
-                    onChange={(e) =>
+                    onCheckedChange={(checked) =>
                       updateSecurityPrefs({
-                        autoLockEnabled: e.currentTarget.checked,
+                        autoLockEnabled: checked,
                       })
                     }
                   />
-                  <span>Auto-lock after inactivity</span>
-                </label>
+                </div>
 
-                <label className="dialog__field" htmlFor="auto-lock-minutes">
-                  <span>Idle timeout</span>
-                  <select
-                    id="auto-lock-minutes"
-                    value={securityPrefs.autoLockMinutes}
-                    disabled={!securityOn || !securityPrefs.autoLockEnabled}
-                    onChange={(e) =>
+                <div className="flex flex-col gap-1.5">
+                  <Label
+                    htmlFor="auto-lock-minutes"
+                    className="text-[0.78rem] font-semibold"
+                  >
+                    Idle timeout
+                  </Label>
+                  <Select
+                    value={String(securityPrefs.autoLockMinutes)}
+                    onValueChange={(value) =>
                       updateSecurityPrefs({
-                        autoLockMinutes: Number(e.currentTarget.value),
+                        autoLockMinutes: Number(value),
                       })
                     }
+                    disabled={!securityOn || !securityPrefs.autoLockEnabled}
                   >
-                    {AUTO_LOCK_MINUTE_OPTIONS.map((minutes) => (
-                      <option key={minutes} value={minutes}>
-                        {minutes} minute{minutes === 1 ? "" : "s"}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                    <SelectTrigger
+                      id="auto-lock-minutes"
+                      className="!h-10 w-full min-w-0 rounded-[var(--radius-sm)] border-[var(--line)] bg-[var(--field-bg)]"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {AUTO_LOCK_MINUTE_OPTIONS.map((minutes) => (
+                        <SelectItem key={minutes} value={String(minutes)}>
+                          {minutes} minute{minutes === 1 ? "" : "s"}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-                <label className="settings__toggle">
-                  <input
-                    type="checkbox"
+                <div className="flex items-center justify-between gap-3">
+                  <Label
+                    htmlFor="lock-on-blur"
+                    className="text-[0.8125rem] font-semibold"
+                  >
+                    Lock when app is hidden
+                  </Label>
+                  <Switch
+                    id="lock-on-blur"
                     checked={securityPrefs.lockOnBlurEnabled}
                     disabled={!securityOn}
-                    onChange={(e) =>
+                    onCheckedChange={(checked) =>
                       updateSecurityPrefs({
-                        lockOnBlurEnabled: e.currentTarget.checked,
+                        lockOnBlurEnabled: checked,
                       })
                     }
                   />
-                  <span>Lock when app is hidden</span>
-                </label>
+                </div>
               </div>
 
               {securityOn ? (
                 <form
                   className="settings__security-remove"
-                  onSubmit={handleRemoveMasterPassword}
+                  onSubmit={(e) => void handleRemoveMasterPassword(e)}
                 >
                   <p className="settings__hint">
                     Removing the master password decrypts inventory to plaintext
                     and opens Foxinal unlocked.
                   </p>
-                  <button
+                  <div className="flex flex-col gap-1.5">
+                    <Label
+                      htmlFor="mp-remove"
+                      className="text-[0.78rem] font-semibold"
+                    >
+                      Confirm master password
+                    </Label>
+                    <Input
+                      id="mp-remove"
+                      type="password"
+                      autoComplete="current-password"
+                      value={removePassword}
+                      onChange={(e) => setRemovePassword(e.currentTarget.value)}
+                      placeholder="••••••••"
+                      disabled={securityBusy}
+                      aria-invalid={
+                        securityError?.toLowerCase().includes("password")
+                          ? true
+                          : undefined
+                      }
+                    />
+                  </div>
+                  <Button
                     type="submit"
-                    className="dialog__cancel"
-                    disabled={securityBusy || !currentPassword}
+                    variant="destructive"
+                    disabled={securityBusy || !removePassword.trim()}
                   >
-                    <span>Remove master password</span>
-                  </button>
+                    <span>
+                      {securityBusy ? "Removing…" : "Remove master password"}
+                    </span>
+                  </Button>
                 </form>
               ) : null}
-            </div>
-          ) : null}
+            </TabsContent>
 
-          {section === "about" ? (
-            <div className="settings__section settings__section--about">
+            <TabsContent
+              value="about"
+              className="settings__section settings__section--about settings__section--animated mt-0"
+            >
               <p className="settings__about-name">{APP_NAME}</p>
               <p className="settings__about-version">v{APP_VERSION}</p>
               <p className="settings__hint">
                 Manage local terminals and SSH hosts in one place.
               </p>
+            </TabsContent>
             </div>
-          ) : null}
-        </div>
-      </div>
-    </div>
+          </div>
+        </Tabs>
+      </DialogContent>
+    </Dialog>
   );
 }

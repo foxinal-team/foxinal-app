@@ -20,22 +20,33 @@ SSH connection manager (in progress). Local-first dashboard (nested groups + SSH
 
 | Layer | Tech |
 |-------|------|
-| Frontend | React 19, TypeScript, Vite 7, xterm, `@tabler/icons-react` |
+| Frontend | React 19, TypeScript, Vite 7, Tailwind v4, shadcn/ui, xterm, `@tabler/icons-react` |
 | Backend | Rust (edition 2021), Tauri 2, `tauri-plugin-pty`, `ssh2` (SFTP) |
 | Package manager | **pnpm** (see lockfile) |
 | Bundle id | `com.foxinal` |
+
+## UI components
+
+- shadcn primitives in `src/components/ui/*` (`Button`, `Dialog`, `Input`, `Label`, `Tabs`, `Switch`, `Select`, `Slider`, `Separator`, `Textarea`, `Progress`, `Checkbox`, `ScrollArea`)
+- Dialog sizes: `default` | `wide` | `settings`; glass styles; `showCloseButton` defaults false
+- Theme tokens in `src/index.css`; feature BEM still in `src/styles/features.css` (dashboard/sftp/etc.)
+- Inventory dialogs (`ConfirmDeleteDialog`, `NameDialog`, `HostDialog`) and `SettingsDialog` use shadcn Dialog; controlled `open` + `onOpenChange`
+- Settings: `size="settings"`, Tabs for Terminal/Account/Security/About; theme swatches keep `settings__theme-*`
+- Shared UI: `src/components/BrandMark.tsx`, `ThemeToggle.tsx`; theme hook `src/hooks/useTheme.ts`
+- Styles: `src/index.css` + `src/styles/features.css` (no `App.css`)
+- `cn` from `@/lib/utils`; prefer `@/` imports for UI
 
 ## Layout
 
 - `src/App.tsx` — unlock gate (only when master password exists) + dashboard
 - `src/Dashboard.tsx` — navbar + inventory + **session tab strip** (PTYs stay mounted when switching tabs / visiting Dashboard)
-- `src/sessions.ts` — tab model (`createLocalTab` / `createHostTab`)
+- `src/lib/sessions.ts` — tab model (`createLocalTab` / `createHostTab`)
 - `src/settings/` — `SettingsDialog` (terminal, account, **security**, about) + `terminalPrefs.ts`
 - `src/security/masterPassword.ts` — PBKDF2 verifier + AES key derive
 - `src/security/vault.ts` — AES-GCM inventory encrypt/decrypt
 - `src/security/session.ts` — enable/change/disable MP + unlock
 - `src/security/prefs.ts` + `useLockGuards.ts` — auto-lock / lock-on-blur
-- `src/TerminalView.tsx` — local shell or SSH; SSH shows connecting / error+retry overlay; host container must not use padding (FitAddon ignores it and clips the last row — pad `.xterm` instead); reads terminal prefs
+- `src/components/TerminalView.tsx` — local shell or SSH; SSH shows connecting / error+retry overlay; host container must not use padding (FitAddon ignores it and clips the last row — pad `.xterm` instead); reads terminal prefs
 - `src/version.ts` — app name/version imported from `package.json` (unlock + Settings about)
 - `src/sftp/` — dual-pane SFTP (`SftpView` / `SftpPane` / `SftpHostPicker`); kept mounted when switching nav; local FS + remote via `ssh2`
 - `src-tauri/src/sftp.rs` — browse session stays free during transfers (dedicated transfer SSH connections); per-`transferId` progress/cancel; folder ops via `tar`/`rm`/`mkdir -p`/`cp -a` with SFTP fallback
@@ -56,7 +67,7 @@ SSH connection manager (in progress). Local-first dashboard (nested groups + SSH
 
 ## UI theme
 
-Clean liquid-glass system in `App.css` (Space Grotesk, `--fox` `#ea580c`, shared spacing/radius tokens). Unlock uses brand header + card; dashboard uses segmented nav + session badge. Terminal font/size/theme via Settings (`foxinal-terminal-prefs`).
+Clean liquid-glass system via Tailwind v4 tokens in `src/index.css` (Space Grotesk, `--fox` `#ea580c`, shadcn semantic colors mapped to Foxinal). Complex feature layouts live in `src/styles/features.css` (`@layer components`). Unlock uses brand header + card; dashboard uses segmented nav + session badge. Terminal font/size/theme via Settings (`foxinal-terminal-prefs`).
 
 ## Brand / icons
 
@@ -64,7 +75,7 @@ Clean liquid-glass system in `App.css` (Space Grotesk, `--fox` `#ea580c`, shared
 - Master: `app-icon.png` (also `app-icon.svg`) → regenerate with `pnpm tauri icon app-icon.png`
 - macOS dock: master PNG must keep ~11% transparent margin per side (~78% content) so optical size matches other apps; do not full-bleed the squircle
 - Bundle icons: `src-tauri/icons/` (icns/ico/png)
-- Favicon: `public/foxinal.svg`; UI mark stays full-bleed: `public/foxinal-icon.png` via `src/BrandMark.tsx`
+- Favicon: `public/foxinal.svg`; UI mark stays full-bleed: `public/foxinal-icon.png` via `src/components/BrandMark.tsx`
 
 ## Commands
 
@@ -88,5 +99,8 @@ pnpm dev            # frontend only — terminal/SSH fail without Tauri
 ## Conventions
 
 - Prefer Tauri 2 docs; update `capabilities/default.json` when adding plugins
+- UI: add shadcn pieces with `pnpm dlx shadcn@latest add <name>`; keep Tabler icons (`iconLibrary: tabler` in `components.json`)
+- Prefer `@/` imports for `components`, `hooks`, `lib`, and feature modules
+- A11y: label icon-only controls; use `inert` on parked session/SFTP panes; inventory opens on click/Enter; SFTP folders open on Enter; toggles use `aria-pressed`
 - Never commit `src-tauri/target/`, `node_modules/`, `dist/`, `.env` / `.env.*` (keep `.env.example`), `.pnpm-store/`
 - Next: recovery key, OS keychain, host-key UX, jump hosts, server sync

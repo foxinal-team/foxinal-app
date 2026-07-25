@@ -5,6 +5,17 @@ import {
   useRef,
   useState,
 } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import type { SaveResult } from "./useInventory";
 
 type NameDialogProps = {
@@ -69,8 +80,6 @@ export function NameDialog({
     return () => window.clearTimeout(id);
   }, [open, initialName]);
 
-  if (!open) return null;
-
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (locked) return;
@@ -98,34 +107,27 @@ export function NameDialog({
   }
 
   return (
-    <div
-      className="dialog"
-      role="presentation"
-      onClick={() => {
-        if (!locked) onClose();
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        if (!v && !locked) onClose();
       }}
     >
-      <div
-        className="dialog__panel"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="name-dialog-title"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="dialog__heading">
+      <DialogContent>
+        <DialogHeader>
           {icon ? <span className="dialog__icon">{icon}</span> : null}
           <div>
-            <h2 id="name-dialog-title" className="dialog__title">
-              {title}
-            </h2>
-            <p className="dialog__lede">{lede}</p>
+            <DialogTitle>{title}</DialogTitle>
+            <DialogDescription>{lede}</DialogDescription>
           </div>
-        </div>
+        </DialogHeader>
 
-        <form className="dialog__form" onSubmit={(e) => void handleSubmit(e)}>
-          <label className="dialog__field" htmlFor="item-name">
-            <span>Name</span>
-            <input
+        <form className="flex flex-col gap-3.5" onSubmit={(e) => void handleSubmit(e)}>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="item-name" className="text-[0.78rem] font-semibold">
+              Name
+            </Label>
+            <Input
               ref={inputRef}
               id="item-name"
               name="item-name"
@@ -135,32 +137,38 @@ export function NameDialog({
               placeholder={placeholder}
               autoComplete="off"
               disabled={locked}
+              aria-invalid={error ? true : undefined}
+              aria-describedby={error ? "name-dialog-error" : undefined}
             />
-          </label>
+          </div>
 
           {error ? (
-            <p className="dialog__error" role="alert">
+            <p
+              id="name-dialog-error"
+              className="m-0 text-[0.8125rem] text-[var(--error)]"
+              role="alert"
+            >
               {error}
             </p>
           ) : null}
 
-          <div className="dialog__actions">
-            <button
+          <DialogFooter className="mt-1">
+            <Button
               type="button"
-              className="dialog__cancel"
+              variant="outline"
               disabled={locked}
               onClick={onClose}
             >
               {cancelIcon}
               <span>Cancel</span>
-            </button>
-            <button type="submit" className="dialog__submit" disabled={locked}>
+            </Button>
+            <Button type="submit" disabled={locked} aria-busy={submitting || undefined}>
               {submitIcon}
-              <span>{submitting ? "Creating…" : submitLabel}</span>
-            </button>
-          </div>
+              <span>{submitting ? "Saving…" : submitLabel}</span>
+            </Button>
+          </DialogFooter>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

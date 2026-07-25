@@ -13,8 +13,16 @@ export function readStoredTheme(): Theme {
   return "system";
 }
 
+function prefersDark(): boolean {
+  return window.matchMedia("(prefers-color-scheme: dark)").matches;
+}
+
+/** Sync data-theme + .dark class (shadcn dark: variants). */
 export function applyTheme(theme: Theme) {
-  document.documentElement.dataset.theme = theme;
+  const root = document.documentElement;
+  root.dataset.theme = theme;
+  const isDark = theme === "dark" || (theme === "system" && prefersDark());
+  root.classList.toggle("dark", isDark);
 }
 
 export function nextTheme(theme: Theme): Theme {
@@ -39,6 +47,12 @@ export function useTheme() {
   useEffect(() => {
     applyTheme(theme);
     localStorage.setItem(STORAGE_KEY, theme);
+
+    if (theme !== "system") return;
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const onChange = () => applyTheme("system");
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
   }, [theme]);
 
   function cycleTheme() {

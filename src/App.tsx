@@ -3,15 +3,16 @@ import {
   IconLogin2,
 } from "@tabler/icons-react";
 import { type FormEvent, useState } from "react";
-import "./App.css";
-import { BrandMark } from "./BrandMark";
+import { BrandMark } from "@/components/BrandMark";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useTheme } from "@/hooks/useTheme";
 import { Dashboard } from "./Dashboard";
 import { loadInventory } from "./inventory/store";
 import { hasMasterPassword } from "./security/masterPassword";
 import { loadSecurityPrefs, type SecurityPrefs } from "./security/prefs";
 import { unlockApp } from "./security/session";
-import { ThemeToggle } from "./ThemeToggle";
-import { useTheme } from "./useTheme";
 import { APP_VERSION } from "./version";
 import type { InventoryItem } from "./inventory/types";
 
@@ -139,9 +140,14 @@ function App() {
             </p>
           </div>
 
-          <form className="login__form" onSubmit={handleUnlock} noValidate>
-            <label className="login__field" htmlFor="master-password">
-              <span>Master password</span>
+          <form
+            className="login__form"
+            onSubmit={handleUnlock}
+            noValidate
+            aria-busy={busy || undefined}
+          >
+            <div className="login__field">
+              <Label htmlFor="master-password">Master password</Label>
               <span className="login__input-wrap">
                 <IconLock
                   className="login__input-icon"
@@ -149,7 +155,7 @@ function App() {
                   stroke={1.75}
                   aria-hidden
                 />
-                <input
+                <Input
                   id="master-password"
                   name="master-password"
                   type="password"
@@ -159,12 +165,19 @@ function App() {
                   onChange={(e) => setPassword(e.currentTarget.value)}
                   placeholder="••••••••"
                   disabled={busy}
+                  aria-invalid={error ? true : undefined}
+                  aria-describedby={error ? "unlock-error" : undefined}
+                  className="h-auto flex-1 border-0 bg-transparent px-0 py-[0.7rem] shadow-none focus-visible:border-0 focus-visible:ring-0"
                 />
               </span>
-            </label>
+            </div>
 
             {error ? (
-              <p className="login__message login__message--error" role="alert">
+              <p
+                id="unlock-error"
+                className="login__message login__message--error"
+                role="alert"
+              >
                 {error}
               </p>
             ) : null}

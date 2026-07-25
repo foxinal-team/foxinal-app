@@ -27,13 +27,13 @@ export function ThemeToggle({
   return (
     <button
       type="button"
-      className={`theme-toggle ${className}`.trim()}
+      className={["theme-toggle", className].filter(Boolean).join(" ")}
       onClick={onCycle}
-      aria-label={`Theme: ${label}. Click to change.`}
+      aria-label={`Theme: ${label}`}
       title={`Theme: ${label}`}
     >
       <ThemeIcon theme={theme} />
-      <span className="theme-toggle__mode" data-mode={theme}>
+      <span className="theme-toggle__mode" data-mode={theme} aria-hidden="true">
         {label}
       </span>
     </button>

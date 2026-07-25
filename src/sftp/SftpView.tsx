@@ -15,6 +15,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { Progress } from "@/components/ui/progress";
 import type { HostItem, InventoryItem } from "../inventory/types";
 import {
   cancelSftpTransfer,
@@ -144,8 +145,16 @@ function TransferProgressCard({
           ? "sftp__progress sftp__progress--stopped"
           : "sftp__progress"
       }
-      role="status"
-      aria-live="polite"
+      role={
+        transfer.phase === "failed" || transfer.phase === "cancelled"
+          ? "alert"
+          : "status"
+      }
+      aria-live={
+        transfer.phase === "failed" || transfer.phase === "cancelled"
+          ? "assertive"
+          : "polite"
+      }
     >
       <div className="sftp__progress-top">
         <span className="sftp__progress-label">
@@ -167,16 +176,25 @@ function TransferProgressCard({
         <p className="sftp__progress-error">{transfer.error}</p>
       ) : null}
 
-      <div className="sftp__progress-track" aria-hidden>
-        <span
-          className={
-            percent === null && running
-              ? "sftp__progress-bar sftp__progress-bar--indeterminate"
-              : "sftp__progress-bar"
+      {percent === null && running ? (
+        <div
+          className="sftp__progress-track"
+          role="progressbar"
+          aria-label={`Transferring ${progress.name}`}
+          aria-valuetext="In progress"
+        >
+          <span className="sftp__progress-bar sftp__progress-bar--indeterminate" />
+        </div>
+      ) : (
+        <Progress
+          value={percent ?? 0}
+          aria-label={`Transferring ${progress.name}`}
+          aria-valuetext={
+            percent !== null ? `${percent} percent` : "Waiting"
           }
-          style={percent !== null ? { width: `${percent}%` } : undefined}
+          className="h-1.5 bg-[color-mix(in_srgb,var(--ink)_8%,transparent)]"
         />
-      </div>
+      )}
 
       <div className="sftp__progress-actions">
         {running ? (
