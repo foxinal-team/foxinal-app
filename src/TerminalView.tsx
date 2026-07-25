@@ -390,7 +390,7 @@ export function TerminalView({
 
   const title =
     session.kind === "local"
-      ? "Local Terminal"
+      ? "Local"
       : session.host.name || hostSummary(session.host);
   const subtitle =
     session.kind === "local" ? "Your OS shell" : hostSummary(session.host);

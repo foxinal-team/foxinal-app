@@ -16,7 +16,7 @@ export function createLocalTab(): SessionTab {
   return {
     id: crypto.randomUUID(),
     session: { kind: "local" },
-    title: "Local Terminal",
+    title: "Local",
     subtitle: "Your OS shell",
   };
 }

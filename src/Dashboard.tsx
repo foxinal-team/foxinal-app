@@ -20,6 +20,7 @@ import {
   IconSortAscendingLetters,
   IconSortDescendingLetters,
   IconTerminal2,
+  IconFolderShare,
   IconTrash,
   IconUpload,
   IconX,
@@ -27,6 +28,7 @@ import {
 import { BrandMark } from "./BrandMark";
 import {
   type PointerEvent as ReactPointerEvent,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -76,8 +78,9 @@ import {
 } from "./sessions";
 import { TerminalView } from "./TerminalView";
 import { ThemeToggle } from "./ThemeToggle";
+import { SftpView } from "./sftp/SftpView";
 
-type DashboardView = "dashboard" | "session";
+type DashboardView = "dashboard" | "session" | "sftp";
 
 type DashboardProps = {
   vaultKey: CryptoKey | null;
@@ -157,6 +160,8 @@ export function Dashboard({
   const [deleteTarget, setDeleteTarget] = useState<InventoryItem | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [sftpDialogOpen, setSftpDialogOpen] = useState(false);
+  const [sftpMounted, setSftpMounted] = useState(false);
   const [terminalPrefs, setTerminalPrefs] = useState<TerminalPrefs>(() =>
     loadTerminalPrefs(),
   );
@@ -213,7 +218,8 @@ export function Dashboard({
     duplicateHostInput !== null ||
     renameGroupTarget !== null ||
     editHostTarget !== null ||
-    deleteTarget !== null;
+    deleteTarget !== null ||
+    sftpDialogOpen;
 
   useLockGuards({
     enabled: securityEnabled,
@@ -221,6 +227,10 @@ export function Dashboard({
     prefs: securityPrefs,
     onLock,
   });
+
+  useEffect(() => {
+    if (view === "sftp") setSftpMounted(true);
+  }, [view]);
 
   const { groups, hosts } = useMemo(() => {
     const dir = sortDir === "asc" ? 1 : -1;
@@ -485,6 +495,18 @@ export function Dashboard({
             <button
               type="button"
               className={
+                view === "sftp"
+                  ? "dashboard__link dashboard__link--active"
+                  : "dashboard__link"
+              }
+              onClick={() => setView("sftp")}
+            >
+              <IconFolderShare {...iconProps} aria-hidden />
+              <span>SFTP</span>
+            </button>
+            <button
+              type="button"
+              className={
                 view === "session" && activeTab?.session.kind === "local"
                   ? "dashboard__link dashboard__link--active"
                   : "dashboard__link"
@@ -492,7 +514,7 @@ export function Dashboard({
               onClick={openLocalTerminal}
             >
               <IconTerminal2 {...iconProps} aria-hidden />
-              <span>Terminal</span>
+              <span>Local</span>
             </button>
           </nav>
         </div>
@@ -1050,6 +1072,21 @@ export function Dashboard({
         </section>
       ) : null}
 
+      {sftpMounted ? (
+        <div
+          className={
+            view === "sftp" ? "sftp-workspace" : "sftp-workspace sftp-workspace--parked"
+          }
+          hidden={view !== "sftp"}
+          aria-hidden={view !== "sftp"}
+        >
+          <SftpView
+            items={items}
+            onBlockingDialogChange={setSftpDialogOpen}
+          />
+        </div>
+      ) : null}
+
       <NameDialog
         open={createGroupOpen}
         title="New group"
@@ -1138,6 +1175,7 @@ export function Dashboard({
           if (!deleteTarget) return;
           if (deleteTarget.kind === "host") deleteHost(deleteTarget.id);
           else deleteGroup(deleteTarget.id);
+          setDeleteTarget(null);
         }}
         icon={<IconTrash size={22} stroke={1.75} aria-hidden />}
         confirmIcon={<IconTrash size={16} stroke={1.75} aria-hidden />}
