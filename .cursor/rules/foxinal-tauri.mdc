@@ -21,7 +21,7 @@ SSH connection manager (in progress). Local-first dashboard (nested groups + SSH
 | Layer | Tech |
 |-------|------|
 | Frontend | React 19, TypeScript, Vite 7, xterm, `@tabler/icons-react` |
-| Backend | Rust (edition 2021), Tauri 2, `tauri-plugin-pty` |
+| Backend | Rust (edition 2021), Tauri 2, `tauri-plugin-pty`, `ssh2` (SFTP) |
 | Package manager | **pnpm** (see lockfile) |
 | Bundle id | `com.foxinal` |
 
@@ -37,7 +37,8 @@ SSH connection manager (in progress). Local-first dashboard (nested groups + SSH
 - `src/security/prefs.ts` + `useLockGuards.ts` — auto-lock / lock-on-blur
 - `src/TerminalView.tsx` — local shell or SSH; SSH shows connecting / error+retry overlay; host container must not use padding (FitAddon ignores it and clips the last row — pad `.xterm` instead); reads terminal prefs
 - `src/version.ts` — app name/version imported from `package.json` (unlock + Settings about)
-- `src-tauri/src/lib.rs` — `default_shell`, `prepare_ssh_launch`, `cleanup_ssh_temp`
+- `src/sftp/` — dual-pane SFTP (`SftpView` / `SftpPane` / `SftpHostPicker`); kept mounted when switching nav; local FS + remote via `ssh2`
+- `src-tauri/src/sftp.rs` — browse session stays free during transfers (dedicated transfer SSH connections); per-`transferId` progress/cancel; folder ops via `tar`/`rm`/`mkdir -p`/`cp -a` with SFTP fallback
 
 ## Inventory / SSH
 
@@ -49,8 +50,9 @@ SSH connection manager (in progress). Local-first dashboard (nested groups + SSH
 - **Import / Export** JSON (`foxinal-inventory` v1): at root = whole inventory; inside a group = that group’s subtree / import into that group
 - **Double-click group** → enter folder; **double-click host** → new session **tab**
 - **Drag-and-drop**: pointer-based (not HTML5 — unreliable in Tauri WebKit); grip `onPointerDown` → window `pointermove`/`pointerup` + `elementsFromPoint` on `[data-fox-drop]`; drop opens destination; blocked for self/descendant / name clash / already there
+- **SFTP** — dual panes; ⌘/Ctrl multi-select + grip-drag copy; concurrent transfers with separate progress/cancel; browse works while transferring; optimistic delete & soft refresh
 - Password auth auto-types when SSH password prompt appears; temp keys cleaned via `cleanup_ssh_temp`
-- Local Terminal navbar opens another OS shell tab
+- Local navbar item opens another OS shell tab
 
 ## UI theme
 

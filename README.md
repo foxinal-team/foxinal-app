@@ -36,6 +36,7 @@ If macOS still blocks it: right-click the app → **Open** → **Open**.
 - **Multi-tab sessions** — local OS terminal and SSH tabs stay alive while you switch or visit the dashboard
 - **SSH auth** — password (auto-typed at prompt) or private key
 - **Drag-and-drop** — move hosts/groups with the grip handle; drop on a group or breadcrumb
+- **SFTP** — dual-pane local/remote file browser with drag-and-drop transfers
 - **Import / export** — JSON inventory (whole tree or current group subtree)
 - **Settings** — terminal font, size, and theme (Match app / Dark / Light / Fox)
 

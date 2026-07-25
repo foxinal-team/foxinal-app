@@ -4,6 +4,15 @@ use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
 
+mod sftp;
+
+use sftp::{
+    fs_home_dir, fs_list_dir, fs_mkdir, fs_parent_dir, fs_remove, sftp_connect, sftp_disconnect,
+    sftp_home_dir, sftp_list_dir, sftp_mkdir, sftp_parent_dir, sftp_remove, cancel_sftp_transfer,
+    transfer_entries,
+    SftpState,
+};
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct SshLaunch {
@@ -153,11 +162,26 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_pty::init())
+        .manage(SftpState::default())
         .invoke_handler(tauri::generate_handler![
             greet,
             default_shell,
             prepare_ssh_launch,
-            cleanup_ssh_temp
+            cleanup_ssh_temp,
+            fs_home_dir,
+            fs_list_dir,
+            fs_parent_dir,
+            fs_mkdir,
+            fs_remove,
+            sftp_connect,
+            sftp_disconnect,
+            sftp_home_dir,
+            sftp_list_dir,
+            sftp_parent_dir,
+            sftp_mkdir,
+            sftp_remove,
+            cancel_sftp_transfer,
+            transfer_entries
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

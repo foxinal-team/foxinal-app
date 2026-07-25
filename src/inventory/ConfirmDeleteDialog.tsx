@@ -7,6 +7,7 @@ type ConfirmDeleteDialogProps = {
   icon?: ReactNode;
   confirmIcon?: ReactNode;
   cancelIcon?: ReactNode;
+  busy?: boolean;
   onClose: () => void;
   onConfirm: () => void;
 };
@@ -18,13 +19,20 @@ export function ConfirmDeleteDialog({
   icon,
   confirmIcon,
   cancelIcon,
+  busy = false,
   onClose,
   onConfirm,
 }: ConfirmDeleteDialogProps) {
   if (!open) return null;
 
   return (
-    <div className="dialog" role="presentation" onClick={onClose}>
+    <div
+      className="dialog"
+      role="presentation"
+      onClick={() => {
+        if (!busy) onClose();
+      }}
+    >
       <div
         className="dialog__panel"
         role="dialog"
@@ -45,20 +53,23 @@ export function ConfirmDeleteDialog({
         </div>
 
         <div className="dialog__actions">
-          <button type="button" className="dialog__cancel" onClick={onClose}>
+          <button
+            type="button"
+            className="dialog__cancel"
+            disabled={busy}
+            onClick={onClose}
+          >
             {cancelIcon}
             <span>Cancel</span>
           </button>
           <button
             type="button"
             className="dialog__submit dialog__submit--danger"
-            onClick={() => {
-              onConfirm();
-              onClose();
-            }}
+            disabled={busy}
+            onClick={onConfirm}
           >
             {confirmIcon}
-            <span>Delete</span>
+            <span>{busy ? "Deleting…" : "Delete"}</span>
           </button>
         </div>
       </div>

@@ -1,4 +1,10 @@
-import { type FormEvent, type ReactNode, useEffect, useRef, useState } from "react";
+import {
+  type FormEvent,
+  type ReactNode,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import type { SaveResult } from "./useInventory";
 
 type NameDialogProps = {
@@ -10,11 +16,14 @@ type NameDialogProps = {
   emptyError?: string;
   saveError?: string;
   initialName?: string;
+  busy?: boolean;
   icon?: ReactNode;
   submitIcon?: ReactNode;
   cancelIcon?: ReactNode;
   onClose: () => void;
-  onSubmitName: (name: string) => SaveResult | boolean;
+  onSubmitName: (
+    name: string,
+  ) => SaveResult | boolean | Promise<SaveResult | boolean>;
 };
 
 function resolveResult(
@@ -35,6 +44,7 @@ export function NameDialog({
   emptyError = "Enter a name.",
   saveError = "Could not save.",
   initialName = "",
+  busy = false,
   icon,
   submitIcon,
   cancelIcon,
@@ -43,12 +53,15 @@ export function NameDialog({
 }: NameDialogProps) {
   const [name, setName] = useState(initialName);
   const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const locked = busy || submitting;
 
   useEffect(() => {
     if (!open) return;
     setName(initialName);
     setError("");
+    setSubmitting(false);
     const id = window.setTimeout(() => {
       inputRef.current?.focus();
       inputRef.current?.select();
@@ -58,22 +71,40 @@ export function NameDialog({
 
   if (!open) return null;
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (locked) return;
     if (!name.trim()) {
       setError(emptyError);
       return;
     }
-    const result = resolveResult(onSubmitName(name), saveError);
-    if (!result.ok) {
-      setError(result.error || saveError);
-      return;
+    setSubmitting(true);
+    setError("");
+    try {
+      const result = resolveResult(
+        await Promise.resolve(onSubmitName(name)),
+        saveError,
+      );
+      if (!result.ok) {
+        setError(result.error || saveError);
+        return;
+      }
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : saveError);
+    } finally {
+      setSubmitting(false);
     }
-    onClose();
   }
 
   return (
-    <div className="dialog" role="presentation" onClick={onClose}>
+    <div
+      className="dialog"
+      role="presentation"
+      onClick={() => {
+        if (!locked) onClose();
+      }}
+    >
       <div
         className="dialog__panel"
         role="dialog"
@@ -91,7 +122,7 @@ export function NameDialog({
           </div>
         </div>
 
-        <form className="dialog__form" onSubmit={handleSubmit}>
+        <form className="dialog__form" onSubmit={(e) => void handleSubmit(e)}>
           <label className="dialog__field" htmlFor="item-name">
             <span>Name</span>
             <input
@@ -103,6 +134,7 @@ export function NameDialog({
               onChange={(e) => setName(e.currentTarget.value)}
               placeholder={placeholder}
               autoComplete="off"
+              disabled={locked}
             />
           </label>
 
@@ -113,13 +145,18 @@ export function NameDialog({
           ) : null}
 
           <div className="dialog__actions">
-            <button type="button" className="dialog__cancel" onClick={onClose}>
+            <button
+              type="button"
+              className="dialog__cancel"
+              disabled={locked}
+              onClick={onClose}
+            >
               {cancelIcon}
               <span>Cancel</span>
             </button>
-            <button type="submit" className="dialog__submit">
+            <button type="submit" className="dialog__submit" disabled={locked}>
               {submitIcon}
-              <span>{submitLabel}</span>
+              <span>{submitting ? "Creating…" : submitLabel}</span>
             </button>
           </div>
         </form>
