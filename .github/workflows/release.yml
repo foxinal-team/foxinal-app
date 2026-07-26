@@ -1,9 +1,10 @@
 # Builds Foxinal for macOS (Apple Silicon + Intel) and Linux (x64),
 # then uploads installers to a draft GitHub Release.
 #
-# Version source of truth for releases:
-#   - tag push `v0.2.0` → syncs that version into all package files, then builds
-#   - workflow_dispatch → optional version input, or auto bump patch
+# 1) prepare — resolve version once + create the draft release
+# 2) publish-tauri — matrix builds upload into that same release (no race)
+#
+# Trigger: push tag `v*` or Actions → release → Run workflow
 name: release
 
 on:
@@ -17,8 +18,76 @@ on:
         required: false
         type: string
 
+env:
+  # Prefer RELEASE_TOKEN when the org locks GITHUB_TOKEN to read-only.
+  GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+
 jobs:
+  prepare:
+    permissions:
+      contents: write
+    runs-on: ubuntu-22.04
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+      release_id: ${{ steps.release.outputs.release_id }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Resolve release version
+        id: ver
+        run: |
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          elif [[ -n "${{ inputs.version }}" ]]; then
+            VERSION="${{ inputs.version }}"
+            VERSION="${VERSION#v}"
+          else
+            node scripts/set-version.mjs --bump patch
+            VERSION="$(node -p "require('./package.json').version")"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Resolved version: $VERSION"
+
+      - name: Sync version into package files
+        run: node scripts/set-version.mjs "${{ steps.ver.outputs.version }}"
+
+      - name: Create or reuse draft release
+        id: release
+        run: |
+          VERSION="${{ steps.ver.outputs.version }}"
+          TAG="v${VERSION}"
+          NOTES="$(cat <<'EOF'
+          Download the installer for your OS below.
+
+          - **macOS Apple Silicon** (M series): `*-aarch64.dmg`
+          - **macOS Intel**: `*-x64.dmg`
+          - **Linux**: `.AppImage` (portable) or `.deb` / `.rpm`
+
+          macOS builds are **not Apple-signed**. If Gatekeeper says the app is damaged, after installing to Applications run:
+
+          ```
+          xattr -cr /Applications/foxinal.app
+          ```
+
+          Then open the app normally. See the README **Download (macOS)** section for details.
+          EOF
+          )"
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists — reusing it"
+          else
+            gh release create "$TAG" \
+              --draft \
+              --title "Foxinal ${TAG}" \
+              --notes "$NOTES"
+          fi
+
+          RELEASE_ID="$(gh api "repos/${{ github.repository }}/releases/tags/${TAG}" --jq .id)"
+          echo "release_id=$RELEASE_ID" >> "$GITHUB_OUTPUT"
+          echo "Using release id $RELEASE_ID ($TAG)"
+
   publish-tauri:
+    needs: prepare
     permissions:
       contents: write
 
@@ -37,6 +106,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
+
+      - name: Sync version into package files
+        run: node scripts/set-version.mjs "${{ needs.prepare.outputs.version }}"
 
       - name: Install Linux dependencies
         if: matrix.platform == 'ubuntu-22.04'
@@ -60,28 +132,6 @@ jobs:
           node-version: lts/*
           cache: pnpm
 
-      - name: Resolve release version
-        id: ver
-        run: |
-          if [[ "${{ github.ref_type }}" == "tag" ]]; then
-            VERSION="${GITHUB_REF_NAME#v}"
-          elif [[ -n "${{ inputs.version }}" ]]; then
-            VERSION="${{ inputs.version }}"
-            VERSION="${VERSION#v}"
-          else
-            VERSION=""
-          fi
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "Resolved version input: ${VERSION:-<auto patch bump>}"
-
-      - name: Sync version into package files
-        run: |
-          if [[ -n "${{ steps.ver.outputs.version }}" ]]; then
-            node scripts/set-version.mjs "${{ steps.ver.outputs.version }}"
-          else
-            node scripts/set-version.mjs --bump patch
-          fi
-
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -91,36 +141,20 @@ jobs:
         uses: swatinem/rust-cache@v2
         with:
           workspaces: "./src-tauri -> target"
+          key: ${{ matrix.platform }}-${{ matrix.args }}
 
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
-      # Prefer RELEASE_TOKEN (PAT) when the org locks GITHUB_TOKEN to read-only.
-      # Create a classic PAT with `repo` (or fine-grained: Contents + Metadata read/write),
-      # then add it as repo secret RELEASE_TOKEN.
       - name: Build and upload to GitHub Release
         uses: tauri-apps/tauri-action@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ env.GH_TOKEN }}
           # Avoid AppImage strip failures on newer glibc toolchains
           NO_STRIP: true
         with:
           tagName: v__VERSION__
-          releaseName: Foxinal v__VERSION__
-          releaseBody: |
-            Download the installer for your OS below.
-
-            - **macOS Apple Silicon** (M series): `*-aarch64.dmg`
-            - **macOS Intel**: `*-x64.dmg`
-            - **Linux**: `.AppImage` (portable) or `.deb` / `.rpm`
-
-            macOS builds are **not Apple-signed**. If Gatekeeper says the app is damaged, after installing to Applications run:
-
-            ```
-            xattr -cr /Applications/foxinal.app
-            ```
-
-            Then open the app normally. See the README **Download (macOS)** section for details.
+          releaseId: ${{ needs.prepare.outputs.release_id }}
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}

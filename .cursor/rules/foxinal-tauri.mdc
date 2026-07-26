@@ -94,15 +94,13 @@ pnpm dev            # frontend only — terminal/SSH fail without Tauri
 
 ## Release / CI
 
-- Workflow: `.github/workflows/release.yml` — macOS (arm64 + x64) + Linux x64 via `tauri-apps/tauri-action`
-- Trigger: push tag `v*` (e.g. `v0.2.0`) or Actions → **release** → Run workflow
-- Version is tag-driven: CI runs `scripts/set-version.mjs` so you do **not** need to edit version files by hand before a release
-- Manual/local sync if needed: `pnpm version:set 0.2.0` or `pnpm version:patch` (also updates `package.json`, `tauri.conf.json`, `Cargo.toml`)
-- `workflow_dispatch` with empty version → auto bump patch from current files
-- Creates a **draft** GitHub Release; publish manually in the UI
-- Prefer org/repo Workflow permissions → **Read and write**; if greyed out (org policy), add secret `RELEASE_TOKEN` (PAT with contents write) — workflow already uses it when set
-- Backend: `ssh2` with `vendored-openssl` (needed so macOS x86_64 CI can cross-compile from arm64 runners)
-- No Apple signing/notarization in CI yet (users may need `xattr -cr` / right-click → Open)
+- Workflow: `.github/workflows/release.yml` — `prepare` creates/reuses one draft release; matrix builds (macOS arm64 + x64, Linux x64) upload into that `releaseId` (avoids parallel-upload races that drop assets)
+- Trigger: push tag `v*` or Actions → **release** → Run workflow
+- Version resolved once in `prepare` (`scripts/set-version.mjs`); matrix jobs sync the same version
+- Manual/local: `pnpm version:set 0.2.0` / `pnpm version:patch`
+- Prefer org/repo Workflow permissions → **Read and write**; if greyed out, secret `RELEASE_TOKEN` (PAT with contents write)
+- Backend: `ssh2` with `vendored-openssl` (macOS x86_64 cross-compile from arm64 runners)
+- No Apple signing/notarization yet (users: `xattr -cr /Applications/foxinal.app`)
 
 ## Conventions
 
