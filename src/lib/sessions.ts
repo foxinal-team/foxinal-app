@@ -1,5 +1,5 @@
-import type { HostItem } from "./inventory/types";
-import { hostSummary } from "./inventory/types";
+import type { HostItem } from "@/inventory/types";
+import { hostSummary } from "@/inventory/types";
 
 export type TerminalSession =
   | { kind: "local" }

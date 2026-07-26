@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import type { SecurityPrefs } from "./prefs";
+import type { SecurityPrefs } from "@/security/prefs";
 
 type UseLockGuardsOptions = {
   enabled: boolean;

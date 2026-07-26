@@ -1,4 +1,4 @@
-import type { InventoryItem } from "../inventory/types";
+import type { InventoryItem } from "@/inventory/types";
 import {
   clearMasterPasswordRecord,
   createMasterPassword,

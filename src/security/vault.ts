@@ -3,8 +3,8 @@ import {
   INVENTORY_STORAGE_KEY,
   type InventoryItem,
   type InventoryState,
-} from "../inventory/types";
-import { normalizeInventoryItems } from "../inventory/store";
+} from "@/inventory/types";
+import { normalizeInventoryItems } from "@/inventory/store";
 import { base64ToBytes, bytesToBase64 } from "./masterPassword";
 
 export const INVENTORY_VAULT_KEY = "foxinal-inventory-vault";

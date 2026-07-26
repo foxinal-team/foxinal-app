@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { loadInventory } from "./store";
-import { saveInventoryState } from "../security/vault";
+import { saveInventoryState } from "@/security/vault";
 import {
   breadcrumbPath,
   canMoveItem,

@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { HostItem } from "../inventory/types";
+import type { HostItem } from "@/inventory/types";
 import type { FsEntry, TransferResult } from "./types";
 import { TRANSFER_CANCELLED_MESSAGE } from "./types";
 

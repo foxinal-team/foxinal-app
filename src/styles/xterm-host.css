@@ -1,0 +1,13 @@
+/* No padding on measure host — FitAddon ignores parent padding and clips last row. */
+.fox-xterm-host {
+  padding: 0;
+}
+.fox-xterm-host .xterm {
+  height: 100%;
+  width: 100%;
+  padding: 0.35rem;
+  box-sizing: border-box;
+}
+.fox-xterm-host .xterm-viewport {
+  overflow-y: auto !important;
+}

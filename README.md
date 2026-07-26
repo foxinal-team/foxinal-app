@@ -45,9 +45,21 @@ If macOS still blocks it: right-click the app → **Open** → **Open**.
 | Layer | Tech |
 |-------|------|
 | App shell | [Tauri 2](https://tauri.app/) + Rust |
-| UI | React 19, TypeScript, Vite 7 |
+| UI | React 19, TypeScript, Vite 7, [Tailwind CSS v4](https://tailwindcss.com/), [shadcn/ui](https://ui.shadcn.com/) |
 | Terminal | xterm.js + `tauri-plugin-pty` |
 | Package manager | [pnpm](https://pnpm.io/) |
+
+### Frontend layout
+
+- `src/components/ui/` — shadcn primitives (`pnpm dlx shadcn@latest add <name>`)
+- `src/components/` — `BrandMark`, `Atmosphere`, `ThemeToggle`, `Dashboard`, `TerminalView`, `ConnectionOverlay`, `DialogIcon`
+- `src/hooks/` — `useTheme`, `useLockGuards`
+- `src/lib/` — `utils` (`cn`), `sessions`, `version`
+- `src/index.css` — Tailwind + Foxinal/shadcn tokens (UI is utilities + shadcn)
+- `src/styles/xterm-host.css` — FitAddon-safe xterm host padding (imported by TerminalView)
+- UI font: `@fontsource/space-grotesk` (local bundle; no CDN)
+- Feature modules: `inventory/`, `settings/`, `sftp/`, `security/`
+- Path alias: `@/` → `src/`
 
 ## Prerequisites
 
