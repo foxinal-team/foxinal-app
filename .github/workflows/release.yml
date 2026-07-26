@@ -53,38 +53,34 @@ jobs:
 
       - name: Create or reuse draft release
         id: release
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
         run: |
-          VERSION="${{ steps.ver.outputs.version }}"
+          set -euo pipefail
           TAG="v${VERSION}"
-          NOTES="$(cat <<'EOF'
-          Download the installer for your OS below.
+          REPO="${{ github.repository }}"
 
-          - **macOS Apple Silicon** (M series): `*-aarch64.dmg`
-          - **macOS Intel**: `*-x64.dmg`
-          - **Linux**: `.AppImage` (portable) or `.deb` / `.rpm`
+          # /releases/tags/{tag} ignores drafts — list releases instead
+          RELEASE_ID="$(gh api "repos/${REPO}/releases" --paginate \
+            --jq ".[] | select(.tag_name == \"${TAG}\") | .id" | head -n1 || true)"
 
-          macOS builds are **not Apple-signed**. If Gatekeeper says the app is damaged, after installing to Applications run:
-
-          ```
-          xattr -cr /Applications/foxinal.app
-          ```
-
-          Then open the app normally. See the README **Download (macOS)** section for details.
-          EOF
-          )"
-
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "Release $TAG already exists — reusing it"
+          if [[ -n "${RELEASE_ID}" ]]; then
+            echo "Release ${TAG} already exists — reusing id ${RELEASE_ID}"
           else
-            gh release create "$TAG" \
-              --draft \
-              --title "Foxinal ${TAG}" \
-              --notes "$NOTES"
+            NOTES=$'Download the installer for your OS below.\n\n- **macOS Apple Silicon** (M series): `*-aarch64.dmg`\n- **macOS Intel**: `*-x64.dmg`\n- **Linux**: `.AppImage` (portable) or `.deb` / `.rpm`\n\nmacOS builds are **not Apple-signed**. If Gatekeeper says the app is damaged, after installing to Applications run:\n\n```\nxattr -cr /Applications/foxinal.app\n```\n\nThen open the app normally. See the README **Download (macOS)** section for details.'
+
+            # Create via API so we get the release id back (works for drafts / missing git tags)
+            RELEASE_ID="$(gh api --method POST "repos/${REPO}/releases" \
+              -f tag_name="${TAG}" \
+              -f name="Foxinal ${TAG}" \
+              -f body="${NOTES}" \
+              -F draft=true \
+              -F prerelease=false \
+              --jq .id)"
+            echo "Created draft release ${TAG} id ${RELEASE_ID}"
           fi
 
-          RELEASE_ID="$(gh api "repos/${{ github.repository }}/releases/tags/${TAG}" --jq .id)"
-          echo "release_id=$RELEASE_ID" >> "$GITHUB_OUTPUT"
-          echo "Using release id $RELEASE_ID ($TAG)"
+          echo "release_id=${RELEASE_ID}" >> "$GITHUB_OUTPUT"
 
   publish-tauri:
     needs: prepare
