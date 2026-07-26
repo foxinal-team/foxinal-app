@@ -1,7 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "./styles/features.css";
 
 /* Foxinal uses data-theme; also sync .dark on <html> for shadcn dark: variants */
 @custom-variant dark (&:is(.dark *));
@@ -58,6 +57,77 @@
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
   --ease-fox: cubic-bezier(0.22, 1, 0.36, 1);
+  --animate-fox-indeterminate: fox-indeterminate 1.1s ease-in-out infinite;
+  --animate-fox-pulse: fox-pulse 2.4s ease-in-out infinite;
+  --animate-atmosphere-drift: atmosphere-drift 18s ease-in-out infinite alternate;
+  --animate-panel-rise: panel-rise 0.55s var(--ease-fox) both;
+  --animate-brand-settle: brand-settle 0.7s var(--ease-fox) 0.05s both;
+  --animate-settings-panel-in: settings-panel-in 0.28s var(--ease-fox) both;
+}
+
+@keyframes fox-indeterminate {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(320%);
+  }
+}
+
+@keyframes fox-pulse {
+  0%,
+  100% {
+    transform: scale(0.92);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scale(1.06);
+    opacity: 0.85;
+  }
+}
+
+@keyframes panel-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes brand-settle {
+  from {
+    opacity: 0;
+    letter-spacing: 0.06em;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    letter-spacing: -0.045em;
+    transform: translateY(0);
+  }
+}
+
+@keyframes atmosphere-drift {
+  from {
+    transform: scale(1) translate(0, 0);
+  }
+  to {
+    transform: scale(1.05) translate(-1.2%, 1%);
+  }
+}
+
+@keyframes settings-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.35rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 :root {
@@ -287,6 +357,13 @@
     min-height: 100vh;
     min-height: 100dvh;
     overflow: hidden;
+  }
+
+  body[data-fox-dragging],
+  body[data-fox-dragging] *,
+  body[data-sftp-dragging],
+  body[data-sftp-dragging] * {
+    cursor: grabbing !important;
   }
 
   button,

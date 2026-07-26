@@ -12,6 +12,7 @@ import {
   IconX,
 } from "@tabler/icons-react";
 import { type FormEvent, useEffect, useRef, useState } from "react";
+import { DialogIcon } from "@/components/DialogIcon";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -24,6 +25,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { toast } from "@/lib/toast";
+import { cn } from "@/lib/utils";
 import type { SaveResult } from "./useInventory";
 import {
   DEFAULT_SSH_PORT,
@@ -96,22 +99,26 @@ export function HostDialog({
     if (submitting) return;
     if (!form.address.trim()) {
       setError("Enter a hostname or IP address.");
+      toast.error("Enter a hostname or IP address.");
       addressRef.current?.focus();
       return;
     }
     if (!form.username.trim()) {
       setError("Enter a username.");
+      toast.error("Enter a username.");
       usernameRef.current?.focus();
       return;
     }
     const port = Number(form.port);
     if (!Number.isInteger(port) || port < 1 || port > 65535) {
       setError("Port must be between 1 and 65535.");
+      toast.error("Port must be between 1 and 65535.");
       portRef.current?.focus();
       return;
     }
     if (form.authMethod === "key" && !form.privateKey.trim()) {
       setError("Paste a private key, or switch to password auth.");
+      toast.error("Paste a private key, or switch to password auth.");
       keyRef.current?.focus();
       return;
     }
@@ -122,6 +129,7 @@ export function HostDialog({
       const result = resolveResult(onSubmit(form), "Could not save host.");
       if (!result.ok) {
         setError(result.error);
+        toast.error(result.error);
         return;
       }
       onClose();
@@ -155,13 +163,13 @@ export function HostDialog({
     >
       <DialogContent size="wide" aria-busy={submitting || undefined}>
         <DialogHeader>
-          <span className="dialog__icon">
+          <DialogIcon>
             {mode === "duplicate" ? (
               <IconCopy size={22} stroke={1.75} aria-hidden />
             ) : (
               <IconServerSpark size={22} stroke={1.75} aria-hidden />
             )}
-          </span>
+          </DialogIcon>
           <div>
             <DialogTitle>{title}</DialogTitle>
             <DialogDescription>{lede}</DialogDescription>
@@ -215,7 +223,6 @@ export function HostDialog({
                     ? true
                     : undefined
                 }
-                aria-describedby={error ? "host-dialog-error" : undefined}
               />
             </div>
 
@@ -235,7 +242,6 @@ export function HostDialog({
                 aria-invalid={
                   error.toLowerCase().includes("port") ? true : undefined
                 }
-                aria-describedby={error ? "host-dialog-error" : undefined}
                 onChange={(e) =>
                   updateField(
                     "port",
@@ -269,7 +275,6 @@ export function HostDialog({
               aria-invalid={
                 error.toLowerCase().includes("username") ? true : undefined
               }
-              aria-describedby={error ? "host-dialog-error" : undefined}
             />
           </div>
 
@@ -278,38 +283,42 @@ export function HostDialog({
               <IconShieldLock {...labelIcon} /> Credentials
             </legend>
             <div
-              className="dialog__auth-toggle"
+              className="flex gap-1 rounded-sm border border-line bg-[var(--field-bg)] p-0.5"
               role="group"
               aria-label="Auth method"
             >
-              <button
+              <Button
                 type="button"
-                className={
+                variant="ghost"
+                className={cn(
+                  "h-auto flex-1 gap-1.5 rounded-[calc(var(--radius-sm)-0.1rem)] px-2.5 py-2 text-[0.78rem] font-semibold shadow-none",
                   form.authMethod === "password"
-                    ? "dialog__auth-option dialog__auth-option--active"
-                    : "dialog__auth-option"
-                }
+                    ? "bg-surface-solid text-ink shadow-(--shadow-sm) hover:bg-surface-solid"
+                    : "text-ink-muted hover:text-ink"
+                )}
                 aria-pressed={form.authMethod === "password"}
                 disabled={submitting}
                 onClick={() => updateField("authMethod", "password")}
               >
                 <IconLock size={16} stroke={1.75} aria-hidden />
                 Password
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
-                className={
+                variant="ghost"
+                className={cn(
+                  "h-auto flex-1 gap-1.5 rounded-[calc(var(--radius-sm)-0.1rem)] px-2.5 py-2 text-[0.78rem] font-semibold shadow-none",
                   form.authMethod === "key"
-                    ? "dialog__auth-option dialog__auth-option--active"
-                    : "dialog__auth-option"
-                }
+                    ? "bg-surface-solid text-ink shadow-(--shadow-sm) hover:bg-surface-solid"
+                    : "text-ink-muted hover:text-ink"
+                )}
                 aria-pressed={form.authMethod === "key"}
                 disabled={submitting}
                 onClick={() => updateField("authMethod", "key")}
               >
                 <IconKey size={16} stroke={1.75} aria-hidden />
                 SSH key
-              </button>
+              </Button>
             </div>
 
             {form.authMethod === "password" ? (
@@ -358,22 +367,11 @@ export function HostDialog({
                       ? true
                       : undefined
                   }
-                  aria-describedby={error ? "host-dialog-error" : undefined}
                   className="min-h-24 resize-y rounded-[var(--radius-sm)] border-[var(--line)] bg-[var(--field-bg)] font-mono text-[0.8rem] leading-[1.45] placeholder:text-[var(--placeholder)] focus-visible:ring-[var(--ring)]"
                 />
               </div>
             )}
           </fieldset>
-
-          {error ? (
-            <p
-              id="host-dialog-error"
-              className="m-0 text-[0.8125rem] text-[var(--error)]"
-              role="alert"
-            >
-              {error}
-            </p>
-          ) : null}
 
           <DialogFooter className="mt-1">
             <Button

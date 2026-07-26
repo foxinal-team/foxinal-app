@@ -27,29 +27,36 @@ SSH connection manager (in progress). Local-first dashboard (nested groups + SSH
 
 ## UI components
 
-- shadcn primitives in `src/components/ui/*` (`Button`, `Dialog`, `Input`, `Label`, `Tabs`, `Switch`, `Select`, `Slider`, `Separator`, `Textarea`, `Progress`, `Checkbox`, `ScrollArea`)
+- shadcn primitives in `src/components/ui/*` (`Button`, `Dialog`, `Input`, `Label`, `Tabs`, `Switch`, `Select`, `Slider`, `Separator`, `Textarea`, `Progress`, `Spinner`, `Checkbox`, `ScrollArea`)
 - Dialog sizes: `default` | `wide` | `settings`; glass styles; `showCloseButton` defaults false
-- Theme tokens in `src/index.css`; feature BEM still in `src/styles/features.css` (dashboard/sftp/etc.)
-- Inventory dialogs (`ConfirmDeleteDialog`, `NameDialog`, `HostDialog`) and `SettingsDialog` use shadcn Dialog; controlled `open` + `onOpenChange`
-- Settings: `size="settings"`, Tabs for Terminal/Account/Security/About; theme swatches keep `settings__theme-*`
-- Shared UI: `src/components/BrandMark.tsx`, `ThemeToggle.tsx`; theme hook `src/hooks/useTheme.ts`
-- Styles: `src/index.css` + `src/styles/features.css` (no `App.css`)
-- `cn` from `@/lib/utils`; prefer `@/` imports for UI
+- Loading: `Spinner`, `Progress` (`indeterminate`), shared `ConnectionOverlay` (SSH/SFTP connect + error)
+- **Toasts:** Sonner (`src/components/ui/sonner.tsx` + `<Toaster />` in `main.tsx`); helpers in `src/lib/toast.ts` (`success` / `error` / `info` / `warning`). Theme follows `data-theme` (no next-themes). Use for transient feedback; keep actionable overlays (Retry/Dismiss) on-page
+- **Styling:** Tailwind v4 tokens + shadcn in `src/index.css` only — screens use utilities + shadcn (no BEM / no `features.css`). Shared: `Atmosphere`, `ThemeToggle`, `DialogIcon`, `ConnectionOverlay`
+- **xterm FitAddon:** never pad the measure host; put padding on `.xterm` inside `.fox-xterm-host` (`src/styles/xterm-host.css` imported by TerminalView) or the last row clips
+- Inventory dialogs + `SettingsDialog` use shadcn Dialog (`open` / `onOpenChange`)
+- Settings tabs: only active panel mounted (no `forceMount`); body height animates via ResizeObserver
+- Shared UI: `src/components/{BrandMark,ThemeToggle,Dashboard,TerminalView,ConnectionOverlay,Atmosphere,DialogIcon}.tsx`
+- Hooks: `src/hooks/{useTheme,useLockGuards}.ts`
+- `cn` from `@/lib/utils`; use `@/` imports across features
 
 ## Layout
 
-- `src/App.tsx` — unlock gate (only when master password exists) + dashboard
-- `src/Dashboard.tsx` — navbar + inventory + **session tab strip** (PTYs stay mounted when switching tabs / visiting Dashboard)
-- `src/lib/sessions.ts` — tab model (`createLocalTab` / `createHostTab`)
-- `src/settings/` — `SettingsDialog` (terminal, account, **security**, about) + `terminalPrefs.ts`
-- `src/security/masterPassword.ts` — PBKDF2 verifier + AES key derive
-- `src/security/vault.ts` — AES-GCM inventory encrypt/decrypt
-- `src/security/session.ts` — enable/change/disable MP + unlock
-- `src/security/prefs.ts` + `useLockGuards.ts` — auto-lock / lock-on-blur
-- `src/components/TerminalView.tsx` — local shell or SSH; SSH shows connecting / error+retry overlay; host container must not use padding (FitAddon ignores it and clips the last row — pad `.xterm` instead); reads terminal prefs
-- `src/version.ts` — app name/version imported from `package.json` (unlock + Settings about)
-- `src/sftp/` — dual-pane SFTP (`SftpView` / `SftpPane` / `SftpHostPicker`); kept mounted when switching nav; local FS + remote via `ssh2`
-- `src-tauri/src/sftp.rs` — browse session stays free during transfers (dedicated transfer SSH connections); per-`transferId` progress/cancel; folder ops via `tar`/`rm`/`mkdir -p`/`cp -a` with SFTP fallback
+```
+src/
+  App.tsx                 # unlock gate
+  components/             # BrandMark, Atmosphere, ThemeToggle, Dashboard, TerminalView, ConnectionOverlay, DialogIcon, ui/*
+  hooks/                  # useTheme, useLockGuards
+  lib/                    # utils, sessions, version, toast
+  styles/xterm-host.css   # FitAddon-safe xterm host (imported by TerminalView)
+  inventory/ settings/ sftp/ security/
+```
+
+- `src/components/Dashboard.tsx` — navbar + inventory + session tab strip (PTYs stay mounted when switching)
+- `src/lib/sessions.ts` — tab model; `src/lib/version.ts` — app name/version from `package.json`
+- `src/settings/` — SettingsDialog + terminalPrefs
+- `src/security/` — masterPassword, vault, session, prefs (lock guards hook lives in `hooks/`)
+- `src/sftp/` — dual-pane SFTP; kept mounted when switching nav
+- `src-tauri/src/sftp.rs` — transfer connections separate from browse; cancel/progress per transferId
 
 ## Inventory / SSH
 
@@ -59,7 +66,7 @@ SSH connection manager (in progress). Local-first dashboard (nested groups + SSH
 - **Duplicate host** (copy icon) opens prefilled create dialog (`name copy`, same credentials)
 - Dashboard: **search** current folder **and nested** groups/hosts (shows relative path), **list/grid** + **A–Z / Z–A** (`foxinal-inventory-layout`, `foxinal-inventory-sort`)
 - **Import / Export** JSON (`foxinal-inventory` v1): at root = whole inventory; inside a group = that group’s subtree / import into that group
-- **Double-click group** → enter folder; **double-click host** → new session **tab**
+- **Inventory** — click (or Enter) a group to open / a host to connect; grip-drag to move
 - **Drag-and-drop**: pointer-based (not HTML5 — unreliable in Tauri WebKit); grip `onPointerDown` → window `pointermove`/`pointerup` + `elementsFromPoint` on `[data-fox-drop]`; drop opens destination; blocked for self/descendant / name clash / already there
 - **SFTP** — dual panes; ⌘/Ctrl multi-select + grip-drag copy; concurrent transfers with separate progress/cancel; browse works while transferring; optimistic delete & soft refresh
 - Password auth auto-types when SSH password prompt appears; temp keys cleaned via `cleanup_ssh_temp`
@@ -67,7 +74,7 @@ SSH connection manager (in progress). Local-first dashboard (nested groups + SSH
 
 ## UI theme
 
-Clean liquid-glass system via Tailwind v4 tokens in `src/index.css` (Space Grotesk, `--fox` `#ea580c`, shadcn semantic colors mapped to Foxinal). Complex feature layouts live in `src/styles/features.css` (`@layer components`). Unlock uses brand header + card; dashboard uses segmented nav + session badge. Terminal font/size/theme via Settings (`foxinal-terminal-prefs`).
+Clean liquid-glass system via Tailwind v4 tokens in `src/index.css` (Space Grotesk **bundled locally** via `@fontsource/space-grotesk` — no Google Fonts / offline-safe). UI is utilities + shadcn (no separate feature BEM stylesheet). Unlock uses brand header + card; dashboard uses segmented nav + session badge. Terminal font/size/theme via Settings (`foxinal-terminal-prefs`; system mono stacks only).
 
 ## Brand / icons
 

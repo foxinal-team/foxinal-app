@@ -32,20 +32,26 @@ import {
   useRef,
   useState,
 } from "react";
+import { Atmosphere } from "@/components/Atmosphere";
 import { BrandMark } from "@/components/BrandMark";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { toast } from "@/lib/toast";
+import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { ConfirmDeleteDialog } from "./inventory/ConfirmDeleteDialog";
-import { HostDialog } from "./inventory/HostDialog";
-import { NameDialog } from "./inventory/NameDialog";
-import { useInventory, type SaveResult } from "./inventory/useInventory";
-import type { SecurityPrefs } from "./security/prefs";
-import { useLockGuards } from "./security/useLockGuards";
-import { SettingsDialog } from "./settings/SettingsDialog";
+import { TerminalView } from "@/components/TerminalView";
+import { ConfirmDeleteDialog } from "@/inventory/ConfirmDeleteDialog";
+import { HostDialog } from "@/inventory/HostDialog";
+import { NameDialog } from "@/inventory/NameDialog";
+import { useInventory, type SaveResult } from "@/inventory/useInventory";
+import type { SecurityPrefs } from "@/security/prefs";
+import { useLockGuards } from "@/hooks/useLockGuards";
+import { SettingsDialog } from "@/settings/SettingsDialog";
 import {
   loadTerminalPrefs,
   saveTerminalPrefs,
   type TerminalPrefs,
-} from "./settings/terminalPrefs";
+} from "@/settings/terminalPrefs";
 import {
   canMoveItem,
   hostSummary,
@@ -56,14 +62,14 @@ import {
   type HostInput,
   type HostItem,
   type InventoryItem,
-} from "./inventory/types";
+} from "@/inventory/types";
 import {
   buildExportPayload,
   downloadExport,
   exportFilename,
   mergeImportedItems,
   readExportFile,
-} from "./inventory/transfer";
+} from "@/inventory/transfer";
 import {
   loadInventoryLayout,
   loadInventorySort,
@@ -71,14 +77,13 @@ import {
   saveInventorySort,
   type InventoryLayout,
   type InventorySort,
-} from "./inventory/viewPrefs";
+} from "@/inventory/viewPrefs";
 import {
   createHostTab,
   createLocalTab,
   type SessionTab,
 } from "@/lib/sessions";
-import { TerminalView } from "@/components/TerminalView";
-import { SftpView } from "./sftp/SftpView";
+import { SftpView } from "@/sftp/SftpView";
 
 type DashboardView = "dashboard" | "session" | "sftp";
 
@@ -165,8 +170,6 @@ export function Dashboard({
   const [terminalPrefs, setTerminalPrefs] = useState<TerminalPrefs>(() =>
     loadTerminalPrefs(),
   );
-  const [transferMessage, setTransferMessage] = useState<string | null>(null);
-  const [transferError, setTransferError] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
   const draggingIdRef = useRef<string | null>(null);
@@ -330,11 +333,6 @@ export function Dashboard({
     saveTerminalPrefs(prefs);
   }
 
-  function clearTransferFeedback() {
-    setTransferMessage(null);
-    setTransferError(null);
-  }
-
   function beginPointerDrag(e: ReactPointerEvent, itemId: string) {
     if (e.button !== 0) return;
     e.preventDefault();
@@ -345,8 +343,6 @@ export function Dashboard({
     dragArmedRef.current = false;
     setDraggingId(itemId);
     setDropTarget(null);
-    clearTransferFeedback();
-
     const prevUserSelect = document.body.style.userSelect;
     document.body.style.userSelect = "none";
     document.body.dataset.foxDragging = "true";
@@ -401,7 +397,7 @@ export function Dashboard({
       const moved = itemsRef.current.find((item) => item.id === activeId);
       const result = moveItemRef.current(activeId, newParentId);
       if (!result.ok) {
-        setTransferError(result.error);
+        toast.error(result.error);
         return;
       }
 
@@ -410,7 +406,7 @@ export function Dashboard({
           ? "All"
           : (itemsRef.current.find((item) => item.id === newParentId)?.name ??
             "group");
-      setTransferMessage(
+      toast.success(
         moved ? `Moved “${moved.name}” into ${dest}.` : "Item moved.",
       );
 
@@ -424,10 +420,9 @@ export function Dashboard({
   }
 
   function handleExport() {
-    clearTransferFeedback();
     const payload = buildExportPayload(items, currentGroupId);
     if (payload.items.length === 0) {
-      setTransferError(
+      toast.warning(
         currentGroup
           ? `“${currentGroup.name}” has nothing to export yet.`
           : "Nothing to export yet.",
@@ -438,7 +433,7 @@ export function Dashboard({
       payload,
       exportFilename(currentGroupId, currentGroup?.name),
     );
-    setTransferMessage(
+    toast.success(
       currentGroup
         ? `Exported ${payload.items.length} item${payload.items.length === 1 ? "" : "s"} from “${currentGroup.name}”.`
         : `Exported ${payload.items.length} item${payload.items.length === 1 ? "" : "s"}.`,
@@ -446,23 +441,22 @@ export function Dashboard({
   }
 
   async function handleImportFile(file: File | undefined) {
-    clearTransferFeedback();
     if (!file) return;
 
     const parsed = await readExportFile(file);
     if (!parsed.ok || !parsed.items) {
-      setTransferError(!parsed.ok ? parsed.error : "Invalid export file.");
+      toast.error(!parsed.ok ? parsed.error : "Invalid export file.");
       return;
     }
 
     const merged = mergeImportedItems(items, parsed.items, currentGroupId);
     if (!merged.ok || !merged.items) {
-      setTransferError(!merged.ok ? merged.error : "Could not import items.");
+      toast.error(!merged.ok ? merged.error : "Could not import items.");
       return;
     }
 
     replaceItems(merged.items);
-    setTransferMessage(
+    toast.success(
       currentGroup
         ? `Imported ${merged.count} item${merged.count === 1 ? "" : "s"} into “${currentGroup.name}”.`
         : `Imported ${merged.count} item${merged.count === 1 ? "" : "s"}.`,
@@ -470,49 +464,55 @@ export function Dashboard({
   }
 
   return (
-    <main className="dashboard">
-      <div className="dashboard__atmosphere" aria-hidden="true" />
+    <main className="relative isolate flex h-full max-h-dvh flex-col overflow-hidden px-[clamp(1rem,3vw,2rem)] py-[clamp(1rem,2.5vw,1.75rem)]">
+      <Atmosphere variant="absolute" />
 
-      <header className="dashboard__header">
-        <div className="dashboard__nav">
-          <p className="dashboard__brand">
-            <BrandMark className="dashboard__brand-mark" />
+      <header className="flex shrink-0 flex-wrap items-center justify-between gap-4 border-b border-line pb-3 motion-safe:animate-panel-rise">
+        <div className="flex min-w-0 items-center gap-5">
+          <p className="m-0 inline-flex items-center gap-2 font-(family-name:--font-brand) text-xl font-bold tracking-tight text-ink">
+            <BrandMark className="size-[1.65rem] shrink-0 rounded-[22%]" />
             <span>foxinal</span>
           </p>
-          <nav className="dashboard__links" aria-label="Primary">
-            <button
+          <nav className="inline-flex items-center gap-0.5 rounded-md border border-line bg-surface p-0.5 backdrop-blur-[var(--blur-sm)]" aria-label="Primary">
+            <Button
               type="button"
-              className={
+              variant="ghost"
+              className={cn(
+                "h-auto gap-1.5 rounded-sm px-3 py-1.5 text-[0.8125rem] font-semibold shadow-none",
                 view === "dashboard"
-                  ? "dashboard__link dashboard__link--active"
-                  : "dashboard__link"
-              }
+                  ? "bg-fox/12 text-ink shadow-(--shadow-sm) hover:bg-fox/12"
+                  : "text-ink-muted hover:bg-foreground/5 hover:text-ink"
+              )}
               aria-current={view === "dashboard" ? "page" : undefined}
               onClick={() => setView("dashboard")}
             >
               <IconFolders {...iconProps} aria-hidden />
               <span>Connections</span>
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
-              className={
+              variant="ghost"
+              className={cn(
+                "h-auto gap-1.5 rounded-sm px-3 py-1.5 text-[0.8125rem] font-semibold shadow-none",
                 view === "sftp"
-                  ? "dashboard__link dashboard__link--active"
-                  : "dashboard__link"
-              }
+                  ? "bg-fox/12 text-ink shadow-(--shadow-sm) hover:bg-fox/12"
+                  : "text-ink-muted hover:bg-foreground/5 hover:text-ink"
+              )}
               aria-current={view === "sftp" ? "page" : undefined}
               onClick={() => setView("sftp")}
             >
               <IconFolderShare {...iconProps} aria-hidden />
               <span>SFTP</span>
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
-              className={
+              variant="ghost"
+              className={cn(
+                "h-auto gap-1.5 rounded-sm px-3 py-1.5 text-[0.8125rem] font-semibold shadow-none",
                 view === "session" && activeTab?.session.kind === "local"
-                  ? "dashboard__link dashboard__link--active"
-                  : "dashboard__link"
-              }
+                  ? "bg-fox/12 text-ink shadow-(--shadow-sm) hover:bg-fox/12"
+                  : "text-ink-muted hover:bg-foreground/5 hover:text-ink"
+              )}
               aria-current={
                 view === "session" && activeTab?.session.kind === "local"
                   ? "page"
@@ -522,58 +522,61 @@ export function Dashboard({
             >
               <IconTerminal2 {...iconProps} aria-hidden />
               <span>Local</span>
-            </button>
+            </Button>
           </nav>
         </div>
 
-        <div className="dashboard__actions">
+        <div className="flex flex-wrap items-center gap-2">
           <ThemeToggle
             theme={theme}
             label={themeLabel}
             onCycle={onCycleTheme}
-            className="theme-toggle--inline"
+            className=""
           />
-          <button
+          <Button
             type="button"
-            className="dashboard__icon-btn"
+            variant="outline"
+            size="icon"
+            className="size-[var(--control-h)] bg-[var(--toggle-bg)]"
             aria-label="Settings"
             title="Settings"
             onClick={() => setSettingsOpen(true)}
           >
             <IconSettings {...iconProps} aria-hidden />
-          </button>
+          </Button>
           <span
-            className="dashboard__badge dashboard__badge--local"
+            className="inline-flex h-[var(--control-h)] max-w-40 items-center gap-1.5 overflow-hidden rounded-full border border-fox/30 bg-fox/8 px-3 text-xs font-semibold text-ellipsis whitespace-nowrap text-fox"
             title="Local mode — data stays on this device"
           >
             <IconDeviceDesktop size={16} stroke={1.75} aria-hidden />
             <span>{displayName}</span>
           </span>
           {securityEnabled ? (
-            <button
+            <Button
               type="button"
-              className="dashboard__signout"
+              variant="outline"
+              className="h-[var(--control-h)] gap-1.5 bg-[var(--toggle-bg)] px-3.5 text-ink-muted"
               onClick={onLock}
               aria-label="Lock Foxinal"
               title="Lock Foxinal"
             >
               <IconLogout {...iconProps} aria-hidden />
               <span>Lock</span>
-            </button>
+            </Button>
           ) : null}
         </div>
       </header>
 
       {tabs.length > 0 ? (
         <div
-          className={
-            view === "session"
-              ? "session-workspace"
-              : "session-workspace session-workspace--parked"
-          }
+          className={cn(
+            "mt-4 flex min-h-0 flex-col gap-2",
+            view === "session" ? "flex-1" : "flex-none"
+          )}
+          data-parked={view !== "session" ? "" : undefined}
         >
           <div
-            className="session-tabs"
+            className="flex max-h-26 shrink-0 flex-wrap content-start items-center gap-1 overflow-x-hidden overflow-y-auto [scrollbar-width:thin]"
             role="tablist"
             aria-label="Open sessions"
             onKeyDown={(e) => {
@@ -600,33 +603,36 @@ export function Dashboard({
                   key={tab.id}
                   className={
                     selected
-                      ? "session-tabs__item session-tabs__item--active"
-                      : "session-tabs__item"
+                      ? "inline-flex max-w-52 flex-none items-center overflow-hidden rounded-sm border border-fox/45 bg-fox/10"
+                      : "inline-flex max-w-52 flex-none items-center overflow-hidden rounded-sm border border-line bg-surface"
                   }
                 >
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
                     id={`session-tab-${tab.id}`}
                     role="tab"
                     aria-selected={selected}
                     aria-controls={`session-panel-${tab.id}`}
                     tabIndex={selected ? 0 : -1}
-                    className="session-tabs__button"
+                    className="h-auto min-w-0 flex-1 justify-start gap-1.5 rounded-none py-1.5 pr-1 pl-2.5 text-[0.78rem] font-semibold text-ink shadow-none hover:bg-transparent"
                     title={tab.subtitle}
                     onClick={() => selectTab(tab.id)}
                   >
-                    <span className="session-tabs__icon" aria-hidden>
+                    <span className="grid shrink-0 place-items-center text-fox" aria-hidden>
                       {tab.session.kind === "local" ? (
                         <IconTerminal2 size={14} stroke={1.75} />
                       ) : (
                         <IconPlugConnected size={14} stroke={1.75} />
                       )}
                     </span>
-                    <span className="session-tabs__label">{tab.title}</span>
-                  </button>
-                  <button
+                    <span className="truncate">{tab.title}</span>
+                  </Button>
+                  <Button
                     type="button"
-                    className="session-tabs__close"
+                    variant="ghost"
+                    size="icon-xs"
+                    className="relative mr-0.5 size-6 rounded-[0.3rem] text-ink-muted after:absolute after:inset-[-0.35rem] after:content-['']"
                     aria-label={`Close ${tab.title}`}
                     title="Close tab"
                     onClick={(e) => {
@@ -635,14 +641,18 @@ export function Dashboard({
                     }}
                   >
                     <IconX size={12} stroke={2} aria-hidden />
-                  </button>
+                  </Button>
                 </div>
               );
             })}
           </div>
 
           <div
-            className="session-panes"
+            className={cn(
+              "relative flex min-h-0 flex-1 flex-col",
+              view !== "session" &&
+                "absolute m-[-1px] h-px w-px overflow-hidden border-0 p-0 [clip:rect(0,0,0,0)] whitespace-nowrap"
+            )}
             aria-hidden={view !== "session"}
             inert={view !== "session" ? true : undefined}
           >
@@ -654,8 +664,8 @@ export function Dashboard({
                   id={`session-panel-${tab.id}`}
                   className={
                     paneActive
-                      ? "session-pane session-pane--active"
-                      : "session-pane"
+                      ? "flex min-h-0 flex-1 flex-col"
+                      : "hidden"
                   }
                   role="tabpanel"
                   aria-labelledby={`session-tab-${tab.id}`}
@@ -677,14 +687,14 @@ export function Dashboard({
       ) : null}
 
       {view === "dashboard" ? (
-        <section className="inventory">
-          <div className="inventory__top">
-            <div className="inventory__intro">
-              <h1 className="inventory__headline">
+        <section className="mt-5 flex min-h-0 flex-1 flex-col gap-4 motion-safe:animate-panel-rise">
+          <div className="flex flex-wrap items-start justify-between gap-5">
+            <div className="min-w-0">
+              <h1 className="m-0 flex items-center gap-2 font-(family-name:--font-brand) text-[clamp(1.5rem,3.5vw,1.9rem)] leading-tight font-bold tracking-[-0.035em] text-ink">
                 {currentGroup ? (
                   <>
                     <IconFolder
-                      className="inventory__headline-icon"
+                      className="shrink-0 text-fox"
                       size={26}
                       stroke={1.6}
                       aria-hidden
@@ -694,7 +704,7 @@ export function Dashboard({
                 ) : (
                   <>
                     <IconFolders
-                      className="inventory__headline-icon"
+                      className="shrink-0 text-fox"
                       size={26}
                       stroke={1.6}
                       aria-hidden
@@ -703,18 +713,19 @@ export function Dashboard({
                   </>
                 )}
               </h1>
-              <p className="inventory__lede">
+              <p className="mt-1.5 mb-0 max-w-xl text-[0.9rem] leading-snug text-ink-muted">
                 {currentGroup
                   ? "Double-click to open or connect. Use the grip handle to drag onto a group or breadcrumb."
                   : "Local data on this device. Use the grip to move items · double-click to open or connect."}
               </p>
             </div>
 
-            <div className="inventory__toolbar">
-              <div className="inventory__toolbar-group" role="group" aria-label="Transfer">
-                <button
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <div className="inline-flex items-center gap-1.5 [&+&]:ml-0.5 [&+&]:border-l [&+&]:border-line [&+&]:pl-2.5" role="group" aria-label="Transfer">
+                <Button
                   type="button"
-                  className="inventory__btn inventory__btn--ghost"
+                  variant="ghost"
+                  className="h-[var(--control-h)]"
                   title={
                     currentGroup
                       ? `Import into “${currentGroup.name}”`
@@ -724,10 +735,11 @@ export function Dashboard({
                 >
                   <IconUpload {...iconProps} aria-hidden />
                   <span>Import</span>
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
-                  className="inventory__btn inventory__btn--ghost"
+                  variant="ghost"
+                  className="h-[var(--control-h)]"
                   title={
                     currentGroup
                       ? `Export “${currentGroup.name}”`
@@ -737,31 +749,32 @@ export function Dashboard({
                 >
                   <IconDownload {...iconProps} aria-hidden />
                   <span>Export</span>
-                </button>
+                </Button>
               </div>
-              <div className="inventory__toolbar-group" role="group" aria-label="Create">
-                <button
+              <div className="inline-flex items-center gap-1.5 [&+&]:ml-0.5 [&+&]:border-l [&+&]:border-line [&+&]:pl-2.5" role="group" aria-label="Create">
+                <Button
                   type="button"
-                  className="inventory__btn inventory__btn--primary"
+                  className="h-[var(--control-h)]"
                   onClick={() => setCreateGroupOpen(true)}
                 >
                   <IconFolderPlus {...iconProps} aria-hidden />
                   <span>New group</span>
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
-                  className="inventory__btn"
+                  variant="outline"
+                  className="h-[var(--control-h)] bg-surface backdrop-blur-[var(--blur-sm)]"
                   onClick={() => setCreateHostOpen(true)}
                 >
                   <IconServerSpark {...iconProps} aria-hidden />
                   <span>New host</span>
-                </button>
+                </Button>
               </div>
               <input
                 ref={importInputRef}
                 type="file"
                 accept="application/json,.json"
-                className="inventory__file-input"
+                className="sr-only"
                 aria-hidden
                 tabIndex={-1}
                 onChange={(e) => {
@@ -773,95 +786,99 @@ export function Dashboard({
             </div>
           </div>
 
-          {transferError ? (
-            <p className="inventory__transfer inventory__transfer--error" role="alert">
-              {transferError}
-            </p>
-          ) : null}
-          {transferMessage ? (
-            <p className="inventory__transfer" role="status">
-              {transferMessage}
-            </p>
-          ) : null}
-
-          <nav className="inventory__crumbs" aria-label="Group path">
-            <button
+          <nav className="flex flex-wrap items-center gap-0.5 text-[0.8125rem]" aria-label="Group path">
+            <Button
               type="button"
-              className={[
+              variant="ghost"
+              size="sm"
+              className={cn(
+                "h-auto rounded-xs px-1.5 py-1 font-semibold shadow-none",
                 breadcrumbs.length === 0
-                  ? "inventory__crumb inventory__crumb--current"
-                  : "inventory__crumb",
-                dropTarget?.kind === "crumb" && dropTarget.id === null
-                  ? "inventory__crumb--drop-target"
-                  : "",
-              ]
-                .filter(Boolean)
-                .join(" ")}
+                  ? "text-fox hover:bg-transparent hover:text-fox"
+                  : "text-ink-muted hover:bg-foreground/5 hover:text-ink",
+                dropTarget?.kind === "crumb" &&
+                  dropTarget.id === null &&
+                  "bg-fox/12 text-fox outline outline-dashed outline-fox/50 hover:bg-fox/12 hover:text-fox",
+              )}
               data-fox-drop="root"
               data-fox-drop-kind="crumb"
               onClick={goToRoot}
               title="Drop here to move to All"
             >
               All
-            </button>
+            </Button>
             {breadcrumbs.map((crumb, index) => (
-              <span key={crumb.id} className="inventory__crumb-wrap">
+              <span key={crumb.id} className="inline-flex items-center gap-0.5">
                 <IconChevronRight
-                  className="inventory__crumb-sep"
+                  className="shrink-0 text-ink-muted opacity-55"
                   size={14}
                   stroke={1.75}
                   aria-hidden
                 />
-                <button
+                <Button
                   type="button"
-                  className={[
+                  variant="ghost"
+                  size="sm"
+                  className={cn(
+                    "h-auto rounded-xs px-1.5 py-1 font-semibold shadow-none",
                     index === breadcrumbs.length - 1
-                      ? "inventory__crumb inventory__crumb--current"
-                      : "inventory__crumb",
-                    dropTarget?.kind === "crumb" && dropTarget.id === crumb.id
-                      ? "inventory__crumb--drop-target"
-                      : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
+                      ? "text-fox hover:bg-transparent hover:text-fox"
+                      : "text-ink-muted hover:bg-foreground/5 hover:text-ink",
+                    dropTarget?.kind === "crumb" &&
+                      dropTarget.id === crumb.id &&
+                      "bg-fox/12 text-fox outline outline-dashed outline-fox/50 hover:bg-fox/12 hover:text-fox",
+                  )}
                   data-fox-drop={crumb.id}
                   data-fox-drop-kind="crumb"
                   onClick={() => goToGroup(crumb.id)}
                   title={`Drop here to move into “${crumb.name}”`}
                 >
                   {crumb.name}
-                </button>
+                </Button>
               </span>
             ))}
           </nav>
 
-          <div className="inventory__controls">
-            <label className="inventory__search" htmlFor="inventory-search">
-              <IconSearch size={16} stroke={1.75} aria-hidden />
-              <input
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <label
+              className="flex h-10 min-w-[min(100%,16rem)] flex-1 items-center gap-2 rounded-sm border border-line bg-[var(--field-bg)] px-2.5 focus-within:border-fox/45 focus-within:ring-[3px] focus-within:ring-[var(--ring)]"
+              htmlFor="inventory-search"
+            >
+              <IconSearch
+                size={16}
+                stroke={1.75}
+                aria-hidden
+                className="shrink-0 text-ink-muted"
+              />
+              <Input
                 id="inventory-search"
                 type="search"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.currentTarget.value)}
                 placeholder="Search groups and hosts…"
                 autoComplete="off"
+                className="h-auto min-w-0 flex-1 border-0 bg-transparent px-0 py-0 shadow-none focus-visible:border-0 focus-visible:ring-0"
               />
               {searchQuery ? (
-                <button
+                <Button
                   type="button"
-                  className="inventory__search-clear"
+                  variant="ghost"
+                  size="icon-xs"
+                  className="size-7 shrink-0 text-ink-muted"
                   aria-label="Clear search"
                   onClick={() => setSearchQuery("")}
                 >
                   <IconX size={14} stroke={2} aria-hidden />
-                </button>
+                </Button>
               ) : null}
             </label>
 
-            <div className="inventory__view-bar" role="group" aria-label="Sort and layout">
-              <button
+            <div className="inline-flex items-center gap-0.5 rounded-sm border border-line bg-surface p-0.5" role="group" aria-label="Sort and layout">
+              <Button
                 type="button"
-                className="inventory__tool inventory__tool--sort"
+                variant="ghost"
+                size="sm"
+                className="h-8 gap-1 px-2.5"
                 onClick={toggleSortDir}
                 title={
                   sortDir === "asc"
@@ -878,14 +895,16 @@ export function Dashboard({
                   <IconSortDescendingLetters size={16} stroke={1.75} aria-hidden />
                 )}
                 <span>{sortDir === "asc" ? "A–Z" : "Z–A"}</span>
-              </button>
-              <span className="inventory__view-sep" aria-hidden />
-              <button
+              </Button>
+              <span className="mx-0.5 h-4 w-px bg-line" aria-hidden />
+              <Button
                 type="button"
+                variant="ghost"
+                size="icon-sm"
                 className={
                   layout === "list"
-                    ? "inventory__tool inventory__tool--active"
-                    : "inventory__tool"
+                    ? "size-8 bg-fox/12 text-fox"
+                    : "size-8"
                 }
                 aria-pressed={layout === "list"}
                 title="List view"
@@ -893,13 +912,15 @@ export function Dashboard({
                 onClick={() => setInventoryLayout("list")}
               >
                 <IconLayoutList size={16} stroke={1.75} aria-hidden />
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
+                variant="ghost"
+                size="icon-sm"
                 className={
                   layout === "grid"
-                    ? "inventory__tool inventory__tool--active"
-                    : "inventory__tool"
+                    ? "size-8 bg-fox/12 text-fox"
+                    : "size-8"
                 }
                 aria-pressed={layout === "grid"}
                 title="Grid view"
@@ -907,52 +928,53 @@ export function Dashboard({
                 onClick={() => setInventoryLayout("grid")}
               >
                 <IconLayoutGrid size={16} stroke={1.75} aria-hidden />
-              </button>
+              </Button>
             </div>
           </div>
 
           <div
-            className={[
-              "inventory__list",
-              layout === "grid" ? "inventory__list--grid" : "",
-              draggingId ? "inventory__list--dragging" : "",
-            ]
-              .filter(Boolean)
-              .join(" ")}
+            className={cn(
+              "min-h-0 flex-1 overflow-auto [scrollbar-width:thin]",
+              layout === "grid"
+                ? "grid grid-cols-[repeat(auto-fill,minmax(14rem,1fr))] gap-2 content-start"
+                : "flex flex-col gap-1",
+              draggingId && "select-none"
+            )}
             role="list"
           >
             {!hasAnyChildren ? (
-              <div className="inventory__empty">
-                <span className="inventory__empty-icon" aria-hidden>
+              <div className="flex flex-col items-center justify-center gap-2 px-4 py-12 text-center">
+                <span className="grid size-12 place-items-center rounded-full bg-fox/10 text-fox" aria-hidden>
                   <IconFolders size={24} stroke={1.5} />
                 </span>
-                <p className="inventory__empty-title">No connections yet</p>
+                <p className="m-0 text-base font-bold text-ink">No connections yet</p>
                 <p>Add a new group or host to get started.</p>
-                <div className="inventory__empty-actions">
-                  <button
+                <div className="mt-2 flex flex-wrap justify-center gap-2">
+                  <Button
                     type="button"
-                    className="inventory__btn inventory__btn--primary"
+                    className="h-[var(--control-h)]"
                     onClick={() => setCreateGroupOpen(true)}
                   >
                     <IconFolderPlus {...iconProps} aria-hidden />
                     <span>New group</span>
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
-                    className="inventory__btn"
+                    variant="outline"
+                    className="h-[var(--control-h)] bg-surface backdrop-blur-[var(--blur-sm)]"
                     onClick={() => setCreateHostOpen(true)}
                   >
                     <IconServerSpark {...iconProps} aria-hidden />
                     <span>New host</span>
-                  </button>
+                  </Button>
                 </div>
               </div>
             ) : !hasVisibleItems ? (
-              <div className="inventory__empty">
-                <span className="inventory__empty-icon" aria-hidden>
+              <div className="flex flex-col items-center justify-center gap-2 px-4 py-12 text-center">
+                <span className="grid size-12 place-items-center rounded-full bg-fox/10 text-fox" aria-hidden>
                   <IconSearch size={24} stroke={1.5} />
                 </span>
-                <p className="inventory__empty-title">No matches</p>
+                <p className="m-0 text-base font-bold text-ink">No matches</p>
                 <p>Try a different search for “{searchQuery.trim()}”.</p>
               </div>
             ) : null}
@@ -967,64 +989,70 @@ export function Dashboard({
               return (
               <div
                 key={group.id}
-                className={[
-                  "inventory__item inventory__item--group",
-                  isDragging ? "inventory__item--dragging" : "",
-                  isDropTarget ? "inventory__item--drop-target" : "",
-                ]
-                  .filter(Boolean)
-                  .join(" ")}
+                className={cn(
+                  "flex items-stretch gap-0.5 rounded-md border border-line bg-surface shadow-(--shadow-sm) backdrop-blur-[var(--blur-sm)]",
+                  layout === "grid" && "flex-col",
+                  isDragging && "opacity-45",
+                  isDropTarget && "border-fox/50 bg-fox/8 outline outline-dashed outline-fox/40"
+                )}
                 role="listitem"
                 data-fox-drop={group.id}
                 data-fox-drop-kind="group"
               >
-                <button
+                <Button
                   type="button"
-                  className="inventory__item-grip"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="size-8 cursor-grab text-ink-muted active:cursor-grabbing"
                   title="Drag to move"
                   aria-label={`Drag ${group.name} to move`}
                   tabIndex={-1}
                   onPointerDown={(e) => beginPointerDrag(e, group.id)}
                 >
                   <IconGripVertical {...actionIcon} aria-hidden />
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
-                  className="inventory__item-main"
+                  variant="ghost"
+                  className="h-auto min-w-0 flex-1 justify-start gap-2.5 rounded-none px-1 py-2 text-left text-ink shadow-none hover:bg-transparent"
                   title="Open group"
                   aria-label={`Open group ${group.name}`}
                   onClick={() => openGroup(group.id)}
                 >
-                  <span className="inventory__item-icon" aria-hidden>
+                  <span className="grid size-9 shrink-0 place-items-center rounded-sm bg-leaf/12 text-[var(--leaf)]" aria-hidden>
                     <IconFolder {...typeIcon} />
                   </span>
-                  <span className="inventory__item-text">
-                    <span className="inventory__item-kind">Group</span>
-                    <span className="inventory__item-name">{group.name}</span>
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="text-[0.68rem] font-bold tracking-wide text-ink-muted uppercase">Group</span>
+                    <span className="truncate text-[0.9rem] font-bold text-ink">{group.name}</span>
                     {location ? (
-                      <span className="inventory__item-meta">{location}</span>
+                      <span className="truncate text-[0.75rem] text-ink-muted">{location}</span>
                     ) : null}
                   </span>
-                </button>
-                <div className="inventory__item-actions">
-                  <button
+                </Button>
+                <div className="flex shrink-0 items-center gap-0.5">
+                  <Button
                     type="button"
-                    className="inventory__item-action"
+                    variant="ghost"
+                    size="icon-sm"
+                    className="size-8"
                     aria-label={`Rename ${group.name}`}
                     title="Rename"
                     onClick={() => setRenameGroupTarget(group)}
                   >
                     <IconPencil {...actionIcon} aria-hidden />
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
-                    className="inventory__item-action inventory__item-action--danger"
+                    variant="ghost"
+                    size="icon-sm"
+                    className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
                     aria-label={`Delete ${group.name}`}
                     title="Delete"
                     onClick={() => setDeleteTarget(group)}
                   >
                     <IconTrash {...actionIcon} aria-hidden />
-                  </button>
+                  </Button>
                 </div>
               </div>
               );
@@ -1041,71 +1069,79 @@ export function Dashboard({
               return (
               <div
                 key={host.id}
-                className={[
-                  "inventory__item inventory__item--host",
-                  isDragging ? "inventory__item--dragging" : "",
-                ]
-                  .filter(Boolean)
-                  .join(" ")}
+                className={cn(
+                  "flex items-stretch gap-0.5 rounded-md border border-line bg-surface shadow-(--shadow-sm) backdrop-blur-[var(--blur-sm)]",
+                  layout === "grid" && "flex-col",
+                  isDragging && "opacity-45"
+                )}
                 role="listitem"
               >
-                <button
+                <Button
                   type="button"
-                  className="inventory__item-grip"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="size-8 cursor-grab text-ink-muted active:cursor-grabbing"
                   title="Drag to move"
                   aria-label={`Drag ${host.name} to move`}
                   tabIndex={-1}
                   onPointerDown={(e) => beginPointerDrag(e, host.id)}
                 >
                   <IconGripVertical {...actionIcon} aria-hidden />
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
-                  className="inventory__item-main"
+                  variant="ghost"
+                  className="h-auto min-w-0 flex-1 justify-start gap-2.5 rounded-none px-1 py-2 text-left text-ink shadow-none hover:bg-transparent"
                   title="Connect"
                   aria-label={`Connect to ${host.name}`}
                   onClick={() => connectToHost(host)}
                 >
                   <span
-                    className="inventory__item-icon inventory__item-icon--host"
+                    className="grid size-9 shrink-0 place-items-center rounded-sm bg-fox/12 text-fox"
                     aria-hidden
                   >
                     <IconServer {...typeIcon} />
                   </span>
-                  <span className="inventory__item-text">
-                    <span className="inventory__item-kind">Host</span>
-                    <span className="inventory__item-name">{host.name}</span>
-                    <span className="inventory__item-meta">{meta}</span>
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="text-[0.68rem] font-bold tracking-wide text-ink-muted uppercase">Host</span>
+                    <span className="truncate text-[0.9rem] font-bold text-ink">{host.name}</span>
+                    <span className="truncate text-[0.75rem] text-ink-muted">{meta}</span>
                   </span>
-                </button>
-                <div className="inventory__item-actions">
-                  <button
+                </Button>
+                <div className="flex shrink-0 items-center gap-0.5">
+                  <Button
                     type="button"
-                    className="inventory__item-action"
+                    variant="ghost"
+                    size="icon-sm"
+                    className="size-8"
                     aria-label={`Duplicate ${host.name}`}
                     title="Duplicate"
                     onClick={() => openDuplicateHost(host)}
                   >
                     <IconCopy {...actionIcon} aria-hidden />
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
-                    className="inventory__item-action"
+                    variant="ghost"
+                    size="icon-sm"
+                    className="size-8"
                     aria-label={`Edit ${host.name}`}
                     title="Edit"
                     onClick={() => setEditHostTarget(host)}
                   >
                     <IconPencil {...actionIcon} aria-hidden />
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
-                    className="inventory__item-action inventory__item-action--danger"
+                    variant="ghost"
+                    size="icon-sm"
+                    className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
                     aria-label={`Delete ${host.name}`}
                     title="Delete"
                     onClick={() => setDeleteTarget(host)}
                   >
                     <IconTrash {...actionIcon} aria-hidden />
-                  </button>
+                  </Button>
                 </div>
               </div>
               );
@@ -1116,9 +1152,10 @@ export function Dashboard({
 
       {sftpMounted ? (
         <div
-          className={
-            view === "sftp" ? "sftp-workspace" : "sftp-workspace sftp-workspace--parked"
-          }
+          className={cn(
+            "mt-5 flex min-h-0 flex-col",
+            view === "sftp" ? "flex-1" : "hidden",
+          )}
           hidden={view !== "sftp"}
           aria-hidden={view !== "sftp"}
           inert={view !== "sftp" ? true : undefined}

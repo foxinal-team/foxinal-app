@@ -2,7 +2,6 @@ import {
   IconFolder,
   IconFolderShare,
   IconFile,
-  IconLoader2,
   IconX,
   IconRefresh,
   IconAlertTriangle,
@@ -15,8 +14,12 @@ import {
   useRef,
   useState,
 } from "react";
+import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import type { HostItem, InventoryItem } from "../inventory/types";
+import { Spinner } from "@/components/ui/spinner";
+import { toast } from "@/lib/toast";
+import { cn } from "@/lib/utils";
+import type { HostItem, InventoryItem } from "@/inventory/types";
 import {
   cancelSftpTransfer,
   formatBytes,
@@ -137,35 +140,41 @@ function TransferProgressCard({
       : transfer.phase === "failed"
         ? "Transfer failed"
         : "Transferring";
+  const route = `${transfer.request.sourceLabel} → ${transfer.request.destLabel}`;
+
+  const stopped =
+    transfer.phase === "failed" || transfer.phase === "cancelled";
 
   return (
     <div
-      className={
-        transfer.phase === "failed" || transfer.phase === "cancelled"
-          ? "sftp__progress sftp__progress--stopped"
-          : "sftp__progress"
-      }
-      role={
-        transfer.phase === "failed" || transfer.phase === "cancelled"
-          ? "alert"
-          : "status"
-      }
-      aria-live={
-        transfer.phase === "failed" || transfer.phase === "cancelled"
-          ? "assertive"
-          : "polite"
-      }
+      className={cn(
+        "flex flex-col gap-2 rounded-sm border border-line bg-surface px-3 py-2.5 shadow-(--shadow-sm)",
+        stopped && "border-destructive/35 bg-destructive/8"
+      )}
+      role={stopped ? "alert" : "status"}
+      aria-live={stopped ? "assertive" : "polite"}
     >
-      <div className="sftp__progress-top">
-        <span className="sftp__progress-label">
-          {running ? (
-            <IconLoader2 size={16} stroke={1.75} className="sftp__spin" />
-          ) : (
-            <IconAlertTriangle size={16} stroke={1.75} />
-          )}
-          {title} “{progress.name}”
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <span className="inline-flex min-w-0 flex-col gap-0.5 text-[0.8125rem] font-bold text-ink">
+          <span className="inline-flex min-w-0 items-center gap-1.5">
+            {running ? (
+              <Spinner size={16} className="shrink-0 text-fox" />
+            ) : (
+              <IconAlertTriangle
+                size={16}
+                stroke={1.75}
+                className="shrink-0 text-destructive"
+              />
+            )}
+            <span className="truncate">
+              {title} “{progress.name}”
+            </span>
+          </span>
+          <span className="pl-[1.375rem] text-[0.72rem] font-semibold text-ink-muted">
+            {route}
+          </span>
         </span>
-        <span className="sftp__progress-meta">
+        <span className="text-xs font-semibold tabular-nums text-ink-muted">
           {formatBytes(progress.transferred)}
           {progress.total > 0 ? ` / ${formatBytes(progress.total)}` : ""}
           {percent !== null ? ` · ${percent}%` : ""}
@@ -173,57 +182,38 @@ function TransferProgressCard({
       </div>
 
       {transfer.phase === "failed" && transfer.error ? (
-        <p className="sftp__progress-error">{transfer.error}</p>
+        <p className="m-0 text-xs text-destructive">{transfer.error}</p>
       ) : null}
 
-      {percent === null && running ? (
-        <div
-          className="sftp__progress-track"
-          role="progressbar"
-          aria-label={`Transferring ${progress.name}`}
-          aria-valuetext="In progress"
-        >
-          <span className="sftp__progress-bar sftp__progress-bar--indeterminate" />
-        </div>
-      ) : (
-        <Progress
-          value={percent ?? 0}
-          aria-label={`Transferring ${progress.name}`}
-          aria-valuetext={
-            percent !== null ? `${percent} percent` : "Waiting"
-          }
-          className="h-1.5 bg-[color-mix(in_srgb,var(--ink)_8%,transparent)]"
-        />
-      )}
+      <Progress
+        value={percent ?? 0}
+        indeterminate={percent === null && running}
+        aria-label={`Transferring ${progress.name} from ${transfer.request.sourceLabel} to ${transfer.request.destLabel}`}
+        aria-valuetext={
+          percent !== null
+            ? `${percent} percent`
+            : running
+              ? "In progress"
+              : "Waiting"
+        }
+      />
 
-      <div className="sftp__progress-actions">
+      <div className="flex flex-wrap justify-end gap-1.5">
         {running ? (
-          <button
-            type="button"
-            className="sftp__progress-btn sftp__progress-btn--ghost"
-            onClick={onCancel}
-          >
+          <Button type="button" variant="ghost" size="xs" onClick={onCancel}>
             <IconX size={15} stroke={1.75} aria-hidden />
             <span>Cancel</span>
-          </button>
+          </Button>
         ) : (
           <>
-            <button
-              type="button"
-              className="sftp__progress-btn sftp__progress-btn--ghost"
-              onClick={onDismiss}
-            >
+            <Button type="button" variant="ghost" size="xs" onClick={onDismiss}>
               <IconX size={15} stroke={1.75} aria-hidden />
               <span>Dismiss</span>
-            </button>
-            <button
-              type="button"
-              className="sftp__progress-btn"
-              onClick={onRetry}
-            >
+            </Button>
+            <Button type="button" size="xs" onClick={onRetry}>
               <IconRefresh size={15} stroke={1.75} aria-hidden />
               <span>Retry</span>
-            </button>
+            </Button>
           </>
         )}
       </div>
@@ -242,12 +232,8 @@ export function SftpView({ items, onBlockingDialogChange }: SftpViewProps) {
   const [rightRefresh, setRightRefresh] = useState(0);
   const [leftConnect, setLeftConnect] = useState<PaneConnectStatus>(null);
   const [rightConnect, setRightConnect] = useState<PaneConnectStatus>(null);
-  const [leftError, setLeftError] = useState<string | null>(null);
-  const [rightError, setRightError] = useState<string | null>(null);
   const [drag, setDrag] = useState<DragUi | null>(null);
   const [transfers, setTransfers] = useState<TransferUi[]>([]);
-  const [status, setStatus] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [leftDialogOpen, setLeftDialogOpen] = useState(false);
   const [rightDialogOpen, setRightDialogOpen] = useState(false);
 
@@ -257,8 +243,6 @@ export function SftpView({ items, onBlockingDialogChange }: SftpViewProps) {
   const ghostRef = useRef<HTMLDivElement | null>(null);
   const hintRef = useRef<HTMLSpanElement | null>(null);
   dragUiRef.current = drag;
-
-  const anyRunning = transfers.some((t) => t.phase === "running");
 
   useEffect(() => {
     onBlockingDialogChange?.(leftDialogOpen || rightDialogOpen);
@@ -275,20 +259,17 @@ export function SftpView({ items, onBlockingDialogChange }: SftpViewProps) {
   }, []);
 
   function setFeedback(message: string | null, err?: string | null) {
-    setStatus(message);
-    setError(err ?? null);
+    if (err) toast.error(err);
+    else if (message) toast.success(message);
   }
 
   async function connectSide(side: SftpPaneSide, host: HostItem) {
     const setConnect = side === "left" ? setLeftConnect : setRightConnect;
-    const setErr = side === "left" ? setLeftError : setRightError;
     const setConn = side === "left" ? setLeft : setRight;
     const setPath = side === "left" ? setLeftPath : setRightPath;
     const current = side === "left" ? left : right;
 
     setConnect({ phase: "connecting", host });
-    setErr(null);
-    setFeedback(null);
 
     try {
       const { sessionId, home } = await sftpConnect(host);
@@ -315,7 +296,7 @@ export function SftpView({ items, onBlockingDialogChange }: SftpViewProps) {
       setFeedback(`Connected to “${host.name}”.`);
     } catch (err) {
       setConnect(null);
-      setErr(invokeErrorMessage(err, "Connection failed."));
+      toast.error(invokeErrorMessage(err, "Connection failed."));
     }
   }
 
@@ -340,12 +321,10 @@ export function SftpView({ items, onBlockingDialogChange }: SftpViewProps) {
     if (side === "left") {
       setLeft(next);
       setLeftPath("");
-      setLeftError(null);
       setLeftRefresh((n) => n + 1);
     } else {
       setRight(next);
       setRightPath("");
-      setRightError(null);
       setRightRefresh((n) => n + 1);
     }
   }
@@ -373,11 +352,6 @@ export function SftpView({ items, onBlockingDialogChange }: SftpViewProps) {
       const without = prev.filter((t) => t.id !== request.id);
       return [...without, ui];
     });
-    setFeedback(
-      transfers.filter((t) => t.phase === "running").length > 0
-        ? `Transferring “${request.entryName}”…`
-        : `Transferring “${request.entryName}”…`,
-    );
 
     try {
       const result = await transferEntries({
@@ -393,7 +367,7 @@ export function SftpView({ items, onBlockingDialogChange }: SftpViewProps) {
         entrySize: request.sourceIsDir ? null : request.entrySize,
       });
       setTransfers((prev) => prev.filter((t) => t.id !== request.id));
-      setFeedback(result.message);
+      toast.success(result.message, `${request.sourceLabel} → ${request.destLabel}`);
       bumpRefresh(request.destSide);
     } catch (err) {
       const message = invokeErrorMessage(err, "Transfer failed.");
@@ -410,10 +384,14 @@ export function SftpView({ items, onBlockingDialogChange }: SftpViewProps) {
             : t,
         ),
       );
-      setFeedback(
-        cancelled ? `Cancelled “${request.entryName}”.` : null,
-        cancelled ? null : message,
-      );
+      if (cancelled) {
+        toast.warning(
+          `Cancelled “${request.entryName}”.`,
+          `${request.sourceLabel} → ${request.destLabel}`,
+        );
+      } else {
+        toast.error(message, `${request.sourceLabel} → ${request.destLabel}`);
+      }
       bumpRefresh(request.destSide);
     }
   }
@@ -425,15 +403,20 @@ export function SftpView({ items, onBlockingDialogChange }: SftpViewProps) {
     const destConn = destSide === "left" ? left : right;
     const destPath = destSide === "left" ? leftPath : rightPath;
     if (!destPath) {
-      setFeedback(null, "Open a folder on the target pane first.");
+      toast.warning("Open a folder on the target pane first.");
       return;
     }
 
+    const sourceLabel =
+      sourceConn.kind === "local" ? "Local" : sourceConn.hostName;
+    const destLabel = destConn.kind === "local" ? "Local" : destConn.hostName;
+    const route = `${sourceLabel} → ${destLabel}`;
     const count = payload.entries.length;
-    setFeedback(
+    toast.info(
       count === 1
         ? `Transferring “${payload.entries[0].name}”…`
         : `Transferring ${count} items…`,
+      route,
     );
 
     for (const entry of payload.entries) {
@@ -443,8 +426,10 @@ export function SftpView({ items, onBlockingDialogChange }: SftpViewProps) {
         sourceKind: sourceConn.kind,
         sourceSessionId:
           sourceConn.kind === "remote" ? sourceConn.sessionId : null,
+        sourceLabel,
         destKind: destConn.kind,
         destSessionId: destConn.kind === "remote" ? destConn.sessionId : null,
+        destLabel,
         sourcePath: entry.path,
         sourceIsDir: entry.kind === "dir",
         destDir: destPath,
@@ -570,15 +555,20 @@ export function SftpView({ items, onBlockingDialogChange }: SftpViewProps) {
   }
 
   return (
-    <section className="sftp">
-      <header className="sftp__header">
-        <div className="sftp__title-wrap">
-          <span className="sftp__title-icon" aria-hidden>
+    <section className="mt-4 flex min-h-0 flex-1 flex-col gap-3 motion-safe:animate-panel-rise">
+      <header className="flex shrink-0 items-start justify-between gap-4">
+        <div className="flex min-w-0 items-start gap-3">
+          <span
+            className="grid size-[var(--control-h)] shrink-0 place-items-center rounded-sm bg-fox/12 text-fox"
+            aria-hidden
+          >
             <IconFolderShare size={20} stroke={1.75} />
           </span>
           <div>
-            <h1 className="sftp__title">SFTP</h1>
-            <p className="sftp__lede">
+            <h1 className="m-0 font-(family-name:--font-brand) text-[1.35rem] font-bold tracking-[-0.03em] text-ink">
+              SFTP
+            </h1>
+            <p className="mt-0.5 mb-0 max-w-xl text-[0.85rem] text-ink-muted">
               Browse local and remote files side by side. Select multiple with
               ⌘/Ctrl-click, then drag onto the other pane to copy.
             </p>
@@ -587,7 +577,7 @@ export function SftpView({ items, onBlockingDialogChange }: SftpViewProps) {
       </header>
 
       {transfers.length > 0 ? (
-        <div className="sftp__progress-stack">
+        <div className="flex max-h-[40vh] shrink-0 flex-col gap-1.5 overflow-auto">
           {transfers.map((t) => (
             <TransferProgressCard
               key={t.id}
@@ -600,18 +590,12 @@ export function SftpView({ items, onBlockingDialogChange }: SftpViewProps) {
         </div>
       ) : null}
 
-      {error && !transfers.some((t) => t.phase === "failed") ? (
-        <p className="sftp__banner sftp__banner--error" role="alert">
-          {error}
-        </p>
-      ) : null}
-      {status && !error && !anyRunning && transfers.length === 0 ? (
-        <p className="sftp__banner" role="status">
-          {status}
-        </p>
-      ) : null}
-
-      <div className={drag ? "sftp__panes sftp__panes--dragging" : "sftp__panes"}>
+      <div
+        className={cn(
+          "grid min-h-0 flex-1 grid-cols-1 grid-rows-2 gap-3 max-[900px]:grid-cols-1 max-[900px]:grid-rows-2 min-[901px]:grid-cols-2 min-[901px]:grid-rows-none",
+          drag && "select-none [&_*]:!cursor-grabbing",
+        )}
+      >
         <MemoSftpPane
           side="left"
           items={items}
@@ -623,7 +607,6 @@ export function SftpView({ items, onBlockingDialogChange }: SftpViewProps) {
           }}
           onConnectHost={(host) => connectSide("left", host)}
           connectStatus={leftConnect}
-          connectError={leftError}
           onConnectReady={() => clearConnect("left")}
           showHidden={leftHidden}
           onToggleHidden={() => setLeftHidden((v) => !v)}
@@ -647,7 +630,6 @@ export function SftpView({ items, onBlockingDialogChange }: SftpViewProps) {
           }}
           onConnectHost={(host) => connectSide("right", host)}
           connectStatus={rightConnect}
-          connectError={rightError}
           onConnectReady={() => clearConnect("right")}
           showHidden={rightHidden}
           onToggleHidden={() => setRightHidden((v) => !v)}
@@ -667,23 +649,26 @@ export function SftpView({ items, onBlockingDialogChange }: SftpViewProps) {
       {drag ? (
         <div
           ref={ghostRef}
-          className="sftp-drag-ghost"
+          className="pointer-events-none fixed top-0 left-0 z-40 flex max-w-64 items-center gap-1.5 rounded-sm border border-fox/40 bg-surface-solid/94 px-2.5 py-1.5 shadow-(--panel-shadow) will-change-transform"
           style={{ transform: "translate3d(-9999px, -9999px, 0)" }}
           aria-hidden
         >
-          <span className="sftp-drag-ghost__icon">
+          <span className="grid shrink-0 place-items-center text-fox">
             {drag.entries[0]?.kind === "dir" ? (
               <IconFolder size={16} stroke={1.75} />
             ) : (
               <IconFile size={16} stroke={1.75} />
             )}
           </span>
-          <span className="sftp-drag-ghost__name">
+          <span className="min-w-0 truncate text-[0.8rem] font-bold text-ink">
             {drag.entries.length === 1
               ? drag.entries[0].name
               : `${drag.entries.length} items`}
           </span>
-          <span ref={hintRef} className="sftp-drag-ghost__hint">
+          <span
+            ref={hintRef}
+            className="shrink-0 text-[0.68rem] font-bold whitespace-nowrap text-fox"
+          >
             Drop on the other pane
           </span>
         </div>

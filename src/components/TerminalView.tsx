@@ -4,21 +4,22 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { spawn, type IPty } from "tauri-pty";
 import {
-  IconAlertTriangle,
-  IconLoader2,
   IconPlugConnected,
-  IconRefresh,
   IconTerminal2,
   IconX,
 } from "@tabler/icons-react";
+import { ConnectionOverlay } from "@/components/ConnectionOverlay";
+import { Button } from "@/components/ui/button";
 import { hostSummary } from "@/inventory/types";
 import type { TerminalSession } from "@/lib/sessions";
+import { cn } from "@/lib/utils";
 import {
   fontFamilyForId,
   resolveTerminalTheme,
   type TerminalPrefs,
 } from "@/settings/terminalPrefs";
 import "@xterm/xterm/css/xterm.css";
+import "@/styles/xterm-host.css";
 
 export type { TerminalSession };
 
@@ -402,102 +403,78 @@ export function TerminalView({
 
   return (
     <section
-      className={
-        active ? "terminal-page" : "terminal-page terminal-page--inactive"
-      }
+      className={cn(
+        "flex w-full min-h-0 flex-1 flex-col gap-[0.65rem]",
+        active &&
+          "motion-safe:animate-[panel-rise_0.4s_var(--ease-fox)_both]",
+      )}
       aria-hidden={!active}
       inert={!active ? true : undefined}
     >
-      <div className="terminal-page__toolbar">
-        <div className="terminal-page__identity">
-          <span className="terminal-page__identity-icon" aria-hidden>
+      <div className="flex shrink-0 items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-[0.65rem]">
+          <span
+            className="grid size-(--control-h) shrink-0 place-items-center rounded-(--radius-sm) bg-fox/12 text-fox"
+            aria-hidden
+          >
             {session.kind === "local" ? (
               <IconTerminal2 size={18} stroke={1.75} />
             ) : (
               <IconPlugConnected size={18} stroke={1.75} />
             )}
           </span>
-          <div>
-            <p className="terminal-page__title">{title}</p>
-            <p className="terminal-page__subtitle">{subtitle}</p>
+          <div className="min-w-0">
+            <p className="m-0 font-(family-name:--font-brand) text-[0.95rem] font-bold tracking-tight text-ink">
+              {title}
+            </p>
+            <p className="m-0 mt-px overflow-hidden text-ellipsis whitespace-nowrap text-xs text-ink-muted">
+              {subtitle}
+            </p>
           </div>
         </div>
         {onCloseSession ? (
-          <button
+          <Button
             type="button"
-            className="terminal-page__close"
+            variant="secondary"
+            size="sm"
             aria-label={`Close ${title}`}
             onClick={onCloseSession}
           >
             <IconX size={16} stroke={1.75} aria-hidden />
             <span>Close</span>
-          </button>
+          </Button>
         ) : null}
       </div>
 
-      <div className="terminal-page__stage">
+      <div className="relative flex min-h-0 flex-1 flex-col">
         {phase === "connecting" && host ? (
-          <div className="conn-overlay" role="status" aria-live="polite">
-            <div className="conn-overlay__pulse" aria-hidden />
-            <div className="conn-overlay__card">
-              <span className="conn-overlay__spinner" aria-hidden>
-                <IconLoader2 size={28} stroke={1.75} />
-              </span>
-              <p className="conn-overlay__title">Connecting</p>
-              <p className="conn-overlay__host">{host.name || hostSummary(host)}</p>
-              <p className="conn-overlay__meta">{hostSummary(host)}</p>
-              <div className="conn-overlay__track" aria-hidden>
-                <span className="conn-overlay__bar" />
-              </div>
-            </div>
-          </div>
+          <ConnectionOverlay
+            variant="connecting"
+            title="Connecting"
+            hostLabel={host.name || hostSummary(host)}
+            meta={hostSummary(host)}
+          />
         ) : null}
 
         {phase === "error" ? (
-          <div className="conn-overlay conn-overlay--error" role="alert">
-            <div className="conn-overlay__card conn-overlay__card--error">
-              <span className="conn-overlay__error-icon" aria-hidden>
-                <IconAlertTriangle size={28} stroke={1.75} />
-              </span>
-              <p className="conn-overlay__title">Connection failed</p>
-              {host ? (
-                <p className="conn-overlay__host">
-                  {host.name || hostSummary(host)}
-                </p>
-              ) : null}
-              <p className="conn-overlay__message">
-                {error || "Something went wrong while connecting."}
-              </p>
-              <div className="conn-overlay__actions">
-                <button
-                  type="button"
-                  className="conn-overlay__retry"
-                  onClick={retry}
-                >
-                  <IconRefresh size={16} stroke={1.75} aria-hidden />
-                  <span>Retry</span>
-                </button>
-                {onCloseSession ? (
-                  <button
-                    type="button"
-                    className="conn-overlay__dismiss"
-                    onClick={onCloseSession}
-                  >
-                    <IconX size={16} stroke={1.75} aria-hidden />
-                    <span>Close</span>
-                  </button>
-                ) : null}
-              </div>
-            </div>
-          </div>
+          <ConnectionOverlay
+            variant="error"
+            title="Connection failed"
+            hostLabel={
+              host ? host.name || hostSummary(host) : undefined
+            }
+            message={error || "Something went wrong while connecting."}
+            onRetry={retry}
+            onDismiss={onCloseSession}
+          />
         ) : null}
 
         <div
-          className={
-            phase === "ready"
-              ? "terminal-page__host"
-              : "terminal-page__host terminal-page__host--hidden"
-          }
+          className={cn(
+            "fox-xterm-host h-full min-h-0 flex-1 overflow-hidden rounded-md border border-line bg-surface-solid shadow-(--shadow-sm)",
+            phase !== "ready" &&
+              "pointer-events-none absolute inset-0 opacity-0",
+          )}
           ref={hostRef}
         />
       </div>

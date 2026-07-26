@@ -12,7 +12,6 @@ import {
   IconHome,
   IconArrowUp,
   IconX,
-  IconLoader2,
   IconGripVertical,
   IconCheck,
 } from "@tabler/icons-react";
@@ -23,10 +22,14 @@ import {
   useRef,
   useState,
 } from "react";
-import { ConfirmDeleteDialog } from "../inventory/ConfirmDeleteDialog";
-import { NameDialog } from "../inventory/NameDialog";
-import type { HostItem, InventoryItem } from "../inventory/types";
-import { hostSummary } from "../inventory/types";
+import { ConnectionOverlay } from "@/components/ConnectionOverlay";
+import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
+import { ConfirmDeleteDialog } from "@/inventory/ConfirmDeleteDialog";
+import { NameDialog } from "@/inventory/NameDialog";
+import type { HostItem, InventoryItem } from "@/inventory/types";
+import { hostSummary } from "@/inventory/types";
+import { cn } from "@/lib/utils";
 import {
   formatBytes,
   formatModified,
@@ -66,7 +69,6 @@ type SftpPaneProps = {
   onConnectionChange: (next: PaneConnection) => void;
   onConnectHost: (host: HostItem) => Promise<void>;
   connectStatus: PaneConnectStatus;
-  connectError: string | null;
   onConnectReady: () => void;
   showHidden: boolean;
   onToggleHidden: () => void;
@@ -89,7 +91,6 @@ export function SftpPane({
   onConnectionChange,
   onConnectHost,
   connectStatus,
-  connectError,
   onConnectReady,
   showHidden,
   onToggleHidden,
@@ -347,20 +348,29 @@ export function SftpPane({
 
   return (
     <section
-      className={[
-        "sftp-pane",
-        dropActive ? "sftp-pane--drop" : "",
-        showOverlay ? "sftp-pane--busy" : "",
-      ]
-        .filter(Boolean)
-        .join(" ")}
+      className={cn(
+        "relative flex min-h-0 min-w-0 flex-col overflow-hidden rounded-md border border-line bg-surface shadow-(--shadow-sm) backdrop-blur-[var(--blur-sm)] transition-[border-color,box-shadow] duration-150 ease-[var(--ease-fox)]",
+        showOverlay && "border-fox/35",
+        dropActive &&
+          "border-fox/60 outline outline-2 outline-offset-[-2px] outline-fox/28"
+      )}
       data-sftp-pane={side}
     >
-      <header className="sftp-pane__header">
-        <div className="sftp-pane__source">
-          <button
+      {dropActive ? (
+        <div
+          className="pointer-events-none absolute top-1/2 left-1/2 z-3 -translate-x-1/2 -translate-y-1/2 rounded-full border border-fox/40 bg-surface-solid/92 px-3.5 py-1.5 text-[0.78rem] font-bold text-fox shadow-(--shadow-sm)"
+          aria-hidden
+        >
+          Drop to copy
+        </div>
+      ) : null}
+
+      <header className="flex shrink-0 items-start justify-between gap-2 border-b border-line px-2.5 pt-2.5 pb-1.5">
+        <div className="relative min-w-0 flex-1" data-sftp-source>
+          <Button
             type="button"
-            className="sftp-pane__source-btn"
+            variant="outline"
+            className="h-auto w-full max-w-64 justify-start gap-1.5 bg-[var(--field-bg)] px-2 py-1.5 text-left text-ink shadow-none"
             onClick={() => setPickerOpen((v) => !v)}
             aria-expanded={pickerOpen}
             aria-haspopup="dialog"
@@ -372,12 +382,14 @@ export function SftpPane({
             ) : (
               <IconServer {...iconSm} aria-hidden />
             )}
-            <span className="sftp-pane__source-text">
-              <strong>{title}</strong>
-              <em>{subtitle}</em>
+            <span className="flex min-w-0 flex-1 flex-col">
+              <strong className="truncate text-[0.8rem] font-bold">{title}</strong>
+              <em className="truncate text-[0.7rem] not-italic text-ink-muted">
+                {subtitle}
+              </em>
             </span>
             <IconChevronRight size={14} stroke={1.75} aria-hidden />
-          </button>
+          </Button>
           {pickerOpen ? (
             <SftpHostPicker
               id={`sftp-picker-${side}`}
@@ -395,10 +407,12 @@ export function SftpPane({
           ) : null}
         </div>
 
-        <div className="sftp-pane__tools">
-          <button
+        <div className="flex shrink-0 flex-wrap gap-0.5">
+          <Button
             type="button"
-            className="sftp-pane__icon-btn"
+            variant="ghost"
+            size="icon-sm"
+            className="size-8"
             title="Home"
             aria-label="Go to home folder"
             disabled={showOverlay}
@@ -421,30 +435,36 @@ export function SftpPane({
             }}
           >
             <IconHome {...iconSm} aria-hidden />
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className="sftp-pane__icon-btn"
+            variant="ghost"
+            size="icon-sm"
+            className="size-8"
             title="Up"
             aria-label="Go to parent folder"
             disabled={showOverlay || !showParentRow}
             onClick={() => void goUp()}
           >
             <IconArrowUp {...iconSm} aria-hidden />
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className="sftp-pane__icon-btn"
+            variant="ghost"
+            size="icon-sm"
+            className="size-8"
             title="Refresh"
             aria-label="Refresh folder"
             disabled={showOverlay}
             onClick={() => void loadPath(path, { soft: true })}
           >
             <IconRefresh {...iconSm} aria-hidden />
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className="sftp-pane__icon-btn"
+            variant="ghost"
+            size="icon-sm"
+            className="size-8"
             title={showHidden ? "Hide hidden files" : "Show hidden files"}
             aria-label={showHidden ? "Hide hidden files" : "Show hidden files"}
             aria-pressed={showHidden}
@@ -456,53 +476,64 @@ export function SftpPane({
             ) : (
               <IconEye {...iconSm} aria-hidden />
             )}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className="sftp-pane__icon-btn"
+            variant="ghost"
+            size="icon-sm"
+            className="size-8"
             title="New folder"
             aria-label="New folder"
             disabled={showOverlay || !path}
             onClick={() => setMkdirOpen(true)}
           >
             <IconFolderPlus {...iconSm} aria-hidden />
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className="sftp-pane__icon-btn sftp-pane__icon-btn--danger"
+            variant="ghost"
+            size="icon-sm"
+            className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
             title="Delete"
             aria-label="Delete selected"
             disabled={showOverlay || selected.length !== 1 || deleting}
             onClick={requestDeleteSelected}
           >
             <IconTrash {...iconSm} aria-hidden />
-          </button>
+          </Button>
         </div>
       </header>
 
-      <nav className="sftp-pane__path" aria-label="Current path" title={path}>
+      <nav
+        className="flex shrink-0 flex-wrap items-center gap-0.5 border-b border-line px-2.5 py-1.5 font-mono text-[0.72rem] text-ink-muted"
+        aria-label="Current path"
+        title={path}
+      >
         {crumbs.length === 0 ? (
-          <span className="sftp-pane__path-empty">—</span>
+          <span className="px-1">—</span>
         ) : (
           crumbs.map((crumb, index) => {
             const isCurrent = index === crumbs.length - 1;
             return (
-              <span key={crumb.path} className="sftp-pane__path-wrap">
+              <span key={crumb.path} className="inline-flex min-w-0 items-center">
                 {index > 0 ? (
                   <IconChevronRight
-                    className="sftp-pane__path-sep"
+                    className="shrink-0 text-ink-muted/70"
                     size={12}
                     stroke={1.75}
                     aria-hidden
                   />
                 ) : null}
-                <button
+                <Button
                   type="button"
-                  className={
+                  variant="ghost"
+                  size="sm"
+                  className={cn(
+                    "h-auto max-w-40 overflow-hidden rounded-xs px-1 py-0.5 text-ellipsis whitespace-nowrap font-semibold shadow-none",
                     isCurrent
-                      ? "sftp-pane__path-crumb sftp-pane__path-crumb--current"
-                      : "sftp-pane__path-crumb"
-                  }
+                      ? "text-ink hover:bg-transparent"
+                      : "text-ink-muted hover:bg-foreground/6 hover:text-ink"
+                  )}
                   disabled={isCurrent || loading}
                   onClick={() => {
                     if (!isCurrent) void loadPath(crumb.path);
@@ -510,172 +541,172 @@ export function SftpPane({
                   title={crumb.path}
                 >
                   {crumb.label}
-                </button>
+                </Button>
               </span>
             );
           })
         )}
       </nav>
 
-      {connectError ? (
-        <p className="sftp-pane__error" role="alert">
-          {connectError}
-        </p>
-      ) : null}
-
-      <div className="sftp-pane__body">
+      <div className="relative flex min-h-0 flex-1 flex-col">
         {showOverlay && overlayHost ? (
-          <div className="conn-overlay sftp-pane__overlay" role="status" aria-live="polite">
-            <div className="conn-overlay__pulse" aria-hidden />
-            <div className="conn-overlay__card">
-              <span className="conn-overlay__spinner" aria-hidden>
-                <IconLoader2 size={28} stroke={1.75} />
-              </span>
-              <p className="conn-overlay__title">{overlayTitle}</p>
-              <p className="conn-overlay__host">
-                {overlayHost.name || hostSummary(overlayHost)}
-              </p>
-              <p className="conn-overlay__meta">{hostSummary(overlayHost)}</p>
-              <div className="conn-overlay__track" aria-hidden>
-                <span className="conn-overlay__bar" />
-              </div>
-            </div>
-          </div>
+          <ConnectionOverlay
+            embedded
+            variant="connecting"
+            title={overlayTitle}
+            hostLabel={overlayHost.name || hostSummary(overlayHost)}
+            meta={hostSummary(overlayHost)}
+          />
         ) : null}
 
         {loading && !showOverlay ? (
-          <div className="sftp-pane__list-spinner" role="status" aria-live="polite">
-            <span className="sftp-pane__list-spinner-chip">
-              <IconLoader2 size={16} stroke={1.75} className="sftp__spin" />
+          <div
+            className="pointer-events-none absolute inset-0 z-2 grid place-items-center bg-surface/18"
+            role="status"
+            aria-live="polite"
+          >
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface-solid/94 px-3 py-1.5 text-xs font-bold text-ink-muted shadow-(--shadow-sm)">
+              <Spinner size={16} className="text-fox" />
               <span>Loading…</span>
             </span>
           </div>
         ) : null}
 
         <div
-          className={
-            [
-              "sftp-pane__list",
-              showOverlay ? "sftp-pane__list--dimmed" : "",
-              loading && !showOverlay ? "sftp-pane__list--busy" : "",
-            ]
-              .filter(Boolean)
-              .join(" ")
-          }
+          className={cn(
+            "min-h-0 flex-1 overflow-auto p-1.5 [scrollbar-width:thin]",
+            showOverlay && "invisible",
+            loading && !showOverlay && "pointer-events-none"
+          )}
           role="list"
         >
           {!loading && !showParentRow && visible.length === 0 ? (
             showOverlay ? null : (
-              <p className="sftp-pane__empty">This folder is empty.</p>
+              <p className="mx-3 my-6 text-center text-[0.85rem] text-ink-muted">
+                This folder is empty.
+              </p>
             )
           ) : (
             <>
               {showParentRow ? (
                 <div
                   role="listitem"
-                  className="sftp-pane__row sftp-pane__row--dir sftp-pane__row--parent"
+                  className="grid grid-cols-[1.5rem_minmax(0,1fr)] items-center gap-0.5 rounded-sm"
                 >
-                  <span className="sftp-pane__grip sftp-pane__grip--spacer" aria-hidden />
-                  <button
+                  <span className="size-6" aria-hidden />
+                  <Button
                     type="button"
-                    className="sftp-pane__row-main"
+                    variant="ghost"
+                    className="h-auto min-w-0 grid grid-cols-[1.25rem_minmax(0,1fr)_4.5rem_5.5rem] items-center gap-2 rounded-sm px-1.5 py-1.5 text-left text-ink shadow-none hover:bg-foreground/5"
                     disabled={loading}
                     onClick={() => void goUp()}
                     onDoubleClick={() => void goUp()}
                     title="Go to parent folder"
                   >
-                    <span className="sftp-pane__row-icon" aria-hidden>
+                    <span className="grid place-items-center text-fox" aria-hidden>
                       <IconFolder size={18} stroke={1.75} />
                     </span>
-                    <span className="sftp-pane__row-name">..</span>
-                    <span className="sftp-pane__row-meta">—</span>
-                    <span className="sftp-pane__row-meta sftp-pane__row-meta--date">
+                    <span className="truncate text-[0.8125rem] font-semibold">..</span>
+                    <span className="truncate text-[0.7rem] text-ink-muted">—</span>
+                    <span className="truncate text-right text-[0.7rem] text-ink-muted">
                       —
                     </span>
-                  </button>
+                  </Button>
                 </div>
               ) : null}
               {visible.map((entry) => {
-              const isSelected = selected.includes(entry.path);
-              const isDragging = !!draggingPaths?.includes(entry.path);
-              return (
-                <div
-                  key={entry.path}
-                  role="listitem"
-                  className={[
-                    "sftp-pane__row",
-                    isSelected ? "sftp-pane__row--selected" : "",
-                    entry.kind === "dir" ? "sftp-pane__row--dir" : "",
-                    isDragging ? "sftp-pane__row--dragging" : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
-                >
-                  <button
-                    type="button"
-                    className="sftp-pane__grip"
-                    title="Drag to other pane to copy"
-                    aria-label={`Drag ${entry.name} to copy`}
-                    tabIndex={-1}
-                    disabled={loading}
-                    onPointerDown={(e) => {
-                      const batch =
-                        selected.includes(entry.path) && selected.length > 1
-                          ? visible.filter((item) => selected.includes(item.path))
-                          : [entry];
-                      if (!selected.includes(entry.path)) {
-                        setSelected([entry.path]);
-                      }
-                      onDragGrip(batch, e);
-                    }}
+                const isSelected = selected.includes(entry.path);
+                const isDragging = !!draggingPaths?.includes(entry.path);
+                return (
+                  <div
+                    key={entry.path}
+                    role="listitem"
+                    className={cn(
+                      "grid grid-cols-[1.5rem_minmax(0,1fr)] items-center gap-0.5 rounded-sm",
+                      isSelected && "bg-fox/10",
+                      isDragging && "opacity-45"
+                    )}
                   >
-                    <IconGripVertical size={16} stroke={1.75} aria-hidden />
-                  </button>
-                  <button
-                    type="button"
-                    className="sftp-pane__row-main"
-                    disabled={loading}
-                    aria-label={
-                      entry.kind === "dir"
-                        ? `${entry.name}, folder. Select with click, open with Enter`
-                        : `${entry.name}, file`
-                    }
-                    aria-pressed={isSelected}
-                    onClick={(e) =>
-                      toggleSelect(entry.path, e.metaKey || e.ctrlKey)
-                    }
-                    onDoubleClick={() => void openEntry(entry)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        void openEntry(entry);
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-xs"
+                      className="size-6 cursor-grab text-ink-muted active:cursor-grabbing"
+                      title="Drag to other pane to copy"
+                      aria-label={`Drag ${entry.name} to copy`}
+                      tabIndex={-1}
+                      disabled={loading}
+                      onPointerDown={(e) => {
+                        const batch =
+                          selected.includes(entry.path) && selected.length > 1
+                            ? visible.filter((item) =>
+                                selected.includes(item.path),
+                              )
+                            : [entry];
+                        if (!selected.includes(entry.path)) {
+                          setSelected([entry.path]);
+                        }
+                        onDragGrip(batch, e);
+                      }}
+                    >
+                      <IconGripVertical size={16} stroke={1.75} aria-hidden />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="h-auto min-w-0 grid grid-cols-[1.25rem_minmax(0,1fr)_4.5rem_5.5rem] items-center gap-2 rounded-sm px-1.5 py-1.5 text-left text-ink shadow-none hover:bg-foreground/5"
+                      disabled={loading}
+                      aria-label={
+                        entry.kind === "dir"
+                          ? `${entry.name}, folder. Select with click, open with Enter`
+                          : `${entry.name}, file`
                       }
-                    }}
-                    title={
-                      entry.kind === "dir"
-                        ? "Click to select · Enter or double-click to open"
-                        : entry.name
-                    }
-                  >
-                    <span className="sftp-pane__row-icon" aria-hidden>
-                      {entry.kind === "dir" ? (
-                        <IconFolder size={18} stroke={1.75} />
-                      ) : (
-                        <IconFile size={18} stroke={1.75} />
-                      )}
-                    </span>
-                    <span className="sftp-pane__row-name">{entry.name}</span>
-                    <span className="sftp-pane__row-meta">
-                      {entry.sizeLabel ??
-                        (entry.kind === "dir" ? "—" : formatBytes(entry.size))}
-                    </span>
-                    <span className="sftp-pane__row-meta sftp-pane__row-meta--date">
-                      {entry.modifiedLabel ?? formatModified(entry.modified)}
-                    </span>
-                  </button>
-                </div>
-              );
-            })}
+                      aria-pressed={isSelected}
+                      onClick={(e) =>
+                        toggleSelect(entry.path, e.metaKey || e.ctrlKey)
+                      }
+                      onDoubleClick={() => void openEntry(entry)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          void openEntry(entry);
+                        }
+                      }}
+                      title={
+                        entry.kind === "dir"
+                          ? "Click to select · Enter or double-click to open"
+                          : entry.name
+                      }
+                    >
+                      <span
+                        className={cn(
+                          "grid place-items-center",
+                          entry.kind === "dir" ? "text-fox" : "text-ink-muted"
+                        )}
+                        aria-hidden
+                      >
+                        {entry.kind === "dir" ? (
+                          <IconFolder size={18} stroke={1.75} />
+                        ) : (
+                          <IconFile size={18} stroke={1.75} />
+                        )}
+                      </span>
+                      <span className="truncate text-[0.8125rem] font-semibold">
+                        {entry.name}
+                      </span>
+                      <span className="truncate text-[0.7rem] tabular-nums text-ink-muted">
+                        {entry.sizeLabel ??
+                          (entry.kind === "dir"
+                            ? "—"
+                            : formatBytes(entry.size))}
+                      </span>
+                      <span className="truncate text-right text-[0.7rem] text-ink-muted">
+                        {entry.modifiedLabel ?? formatModified(entry.modified)}
+                      </span>
+                    </Button>
+                  </div>
+                );
+              })}
             </>
           )}
         </div>

@@ -1,10 +1,4 @@
-import {
-  type FormEvent,
-  type ReactNode,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { DialogIcon } from "@/components/DialogIcon";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -16,7 +10,15 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { toast } from "@/lib/toast";
 import type { SaveResult } from "./useInventory";
+import {
+  type FormEvent,
+  type ReactNode,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 type NameDialogProps = {
   open: boolean;
@@ -85,6 +87,7 @@ export function NameDialog({
     if (locked) return;
     if (!name.trim()) {
       setError(emptyError);
+      toast.error(emptyError);
       return;
     }
     setSubmitting(true);
@@ -95,12 +98,16 @@ export function NameDialog({
         saveError,
       );
       if (!result.ok) {
-        setError(result.error || saveError);
+        const msg = result.error || saveError;
+        setError(msg);
+        toast.error(msg);
         return;
       }
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : saveError);
+      const msg = err instanceof Error ? err.message : saveError;
+      setError(msg);
+      toast.error(msg);
     } finally {
       setSubmitting(false);
     }
@@ -115,7 +122,7 @@ export function NameDialog({
     >
       <DialogContent>
         <DialogHeader>
-          {icon ? <span className="dialog__icon">{icon}</span> : null}
+          {icon ? <DialogIcon>{icon}</DialogIcon> : null}
           <div>
             <DialogTitle>{title}</DialogTitle>
             <DialogDescription>{lede}</DialogDescription>
@@ -138,19 +145,8 @@ export function NameDialog({
               autoComplete="off"
               disabled={locked}
               aria-invalid={error ? true : undefined}
-              aria-describedby={error ? "name-dialog-error" : undefined}
             />
           </div>
-
-          {error ? (
-            <p
-              id="name-dialog-error"
-              className="m-0 text-[0.8125rem] text-[var(--error)]"
-              role="alert"
-            >
-              {error}
-            </p>
-          ) : null}
 
           <DialogFooter className="mt-1">
             <Button

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { DialogIcon } from "@/components/DialogIcon";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -41,9 +42,7 @@ export function ConfirmDeleteDialog({
     >
       <DialogContent aria-busy={busy || undefined}>
         <DialogHeader>
-          {icon ? (
-            <span className="dialog__icon dialog__icon--danger">{icon}</span>
-          ) : null}
+          {icon ? <DialogIcon tone="danger">{icon}</DialogIcon> : null}
           <div>
             <DialogTitle>{title}</DialogTitle>
             <DialogDescription>{message}</DialogDescription>

@@ -33,8 +33,12 @@ export type TransferRequest = {
   destSide: "left" | "right";
   sourceKind: "local" | "remote";
   sourceSessionId: string | null;
+  /** Display name: "Local" or host label. */
+  sourceLabel: string;
   destKind: "local" | "remote";
   destSessionId: string | null;
+  /** Display name: "Local" or host label. */
+  destLabel: string;
   sourcePath: string;
   sourceIsDir: boolean;
   destDir: string;

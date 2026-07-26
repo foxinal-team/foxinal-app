@@ -3,6 +3,8 @@ import {
   IconMoon,
   IconSun,
 } from "@tabler/icons-react";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 type ThemeToggleProps = {
   theme: string;
@@ -22,20 +24,25 @@ export function ThemeToggle({
   theme,
   label,
   onCycle,
-  className = "",
+  className,
 }: ThemeToggleProps) {
   return (
-    <button
+    <Button
       type="button"
-      className={["theme-toggle", className].filter(Boolean).join(" ")}
+      variant="outline"
+      size="sm"
       onClick={onCycle}
       aria-label={`Theme: ${label}`}
       title={`Theme: ${label}`}
+      className={cn(
+        "h-[var(--control-h)] gap-1.5 bg-[var(--toggle-bg)] px-3.5 backdrop-blur-[var(--blur-sm)]",
+        className
+      )}
     >
       <ThemeIcon theme={theme} />
-      <span className="theme-toggle__mode" data-mode={theme} aria-hidden="true">
+      <span className="inline-block min-w-12.5 text-left" data-mode={theme} aria-hidden>
         {label}
       </span>
-    </button>
+    </Button>
   );
 }
