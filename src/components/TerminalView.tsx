@@ -52,6 +52,8 @@ const SSH_ERROR_PATTERNS: Array<{ re: RegExp; label: string }> = [
   { re: /host key verification failed/i, label: "Host key verification failed" },
   { re: /connection reset by peer/i, label: "Connection reset" },
   { re: /connection closed by/i, label: "Connection closed by remote host" },
+  { re: /broken pipe/i, label: "Connection lost" },
+  { re: /client_loop:\s*send disconnect/i, label: "Connection lost" },
 ];
 
 const CONNECT_TIMEOUT_MS = 45_000;
@@ -118,6 +120,8 @@ export function TerminalView({
     session.kind === "local" ? "ready" : "connecting",
   );
   const [error, setError] = useState<string | null>(null);
+  /** True once an SSH session reached ready — exit then means reconnect, not first-connect retry. */
+  const [canReconnect, setCanReconnect] = useState(false);
 
   const sessionKey =
     session.kind === "local" ? "local" : `ssh:${session.host.id}`;
@@ -139,6 +143,7 @@ export function TerminalView({
     const isSsh = session.kind === "ssh";
     setPhase(isSsh ? "connecting" : "ready");
     setError(null);
+    setCanReconnect(false);
 
     function markReady() {
       if (disposed) return;
@@ -146,14 +151,16 @@ export function TerminalView({
       window.clearTimeout(readyTimer);
       setPhase("ready");
       setError(null);
+      if (isSsh) setCanReconnect(true);
     }
 
-    function markError(message: string) {
+    function markError(message: string, reconnectable = false) {
       if (disposed) return;
       window.clearTimeout(connectTimer);
       window.clearTimeout(readyTimer);
       setPhase("error");
       setError(message);
+      if (reconnectable) setCanReconnect(true);
     }
 
     async function start() {
@@ -293,7 +300,9 @@ export function TerminalView({
         disposables.push(
           pty.onExit(({ exitCode }) => {
             term?.writeln(`\r\n[process exited with code ${exitCode}]`);
-            if (isSsh && !settled) {
+            if (!isSsh) return;
+
+            if (!settled) {
               settled = true;
               const sshError = extractSshError(outputBuffer);
               markError(
@@ -302,7 +311,18 @@ export function TerminalView({
                     ? "Connection closed before the session was ready."
                     : `Connection failed (exit ${exitCode}).`),
               );
+              return;
             }
+
+            // Session was live — offer reconnect instead of a dead terminal.
+            const sshError = extractSshError(outputBuffer);
+            markError(
+              sshError ||
+                (exitCode === 0
+                  ? "Session ended."
+                  : `Connection lost (exit ${exitCode}).`),
+              true,
+            );
           }),
         );
 
@@ -401,6 +421,14 @@ export function TerminalView({
     setAttempt((n) => n + 1);
   }
 
+  const errorTitle = canReconnect ? "Disconnected" : "Connection failed";
+  const errorMessage =
+    error ||
+    (canReconnect
+      ? "The SSH session ended. Reconnect to continue."
+      : "Something went wrong while connecting.");
+  const retryLabel = canReconnect ? "Reconnect" : "Retry";
+
   return (
     <section
       className={cn(
@@ -459,12 +487,13 @@ export function TerminalView({
         {phase === "error" ? (
           <ConnectionOverlay
             variant="error"
-            title="Connection failed"
+            title={errorTitle}
             hostLabel={
               host ? host.name || hostSummary(host) : undefined
             }
-            message={error || "Something went wrong while connecting."}
+            message={errorMessage}
             onRetry={retry}
+            retryLabel={retryLabel}
             onDismiss={onCloseSession}
           />
         ) : null}

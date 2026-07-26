@@ -71,6 +71,13 @@ fn prepare_ssh_launch(
         port.to_string(),
         "-o".to_string(),
         "StrictHostKeyChecking=accept-new".to_string(),
+        // Keep idle sessions alive when Foxinal is backgrounded (NAT / server idle kills).
+        "-o".to_string(),
+        "ServerAliveInterval=30".to_string(),
+        "-o".to_string(),
+        "ServerAliveCountMax=3".to_string(),
+        "-o".to_string(),
+        "TCPKeepAlive=yes".to_string(),
         "-tt".to_string(),
     ];
 

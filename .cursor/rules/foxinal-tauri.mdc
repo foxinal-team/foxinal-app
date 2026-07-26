@@ -70,6 +70,8 @@ src/
 - **Drag-and-drop**: pointer-based (not HTML5 — unreliable in Tauri WebKit); grip `onPointerDown` → window `pointermove`/`pointerup` + `elementsFromPoint` on `[data-fox-drop]`; drop opens destination; blocked for self/descendant / name clash / already there
 - **SFTP** — dual panes; ⌘/Ctrl multi-select + grip-drag copy; concurrent transfers with separate progress/cancel; browse works while transferring; optimistic delete & soft refresh
 - Password auth auto-types when SSH password prompt appears; temp keys cleaned via `cleanup_ssh_temp`
+- SSH launch (`prepare_ssh_launch`): `ServerAliveInterval=30`, `ServerAliveCountMax=3`, `TCPKeepAlive=yes` so idle tabs survive app switch / NAT timeouts
+- SSH disconnect after ready → Disconnected overlay with **Reconnect** (same tab / host); first-connect failures keep **Retry**
 - Local navbar item opens another OS shell tab
 
 ## UI theme
@@ -78,11 +80,11 @@ Clean liquid-glass system via Tailwind v4 tokens in `src/index.css` (Space Grote
 
 ## Brand / icons
 
-- Mark: white fox head + terminal `>` / cursor on fox-orange squircle (`#ea580c` → `#c2410c`)
-- Master: `app-icon.png` (also `app-icon.svg`) → regenerate with `pnpm tauri icon app-icon.png`
-- macOS dock: master PNG must keep ~11% transparent margin per side (~78% content) so optical size matches other apps; do not full-bleed the squircle
+- Mark: white fox (pointed ears, cheek tufts, almond eyes) + terminal `>` / cursor cutouts on fox-orange squircle (`#ea580c` → `#c2410c`)
+- Masters: `app-icon.png` (1024, transparent corners) + matching `app-icon.svg` (traced evenodd fox path — not the old soft geometric fox)
+- Regenerate: `pnpm tauri icon app-icon.png` — do not feed SVG straight to `tauri icon` (can warp the path)
 - Bundle icons: `src-tauri/icons/` (icns/ico/png)
-- Favicon: `public/foxinal.svg`; UI mark stays full-bleed: `public/foxinal-icon.png` via `src/components/BrandMark.tsx`
+- Favicon: `public/foxinal.svg`; UI mark: `public/foxinal-icon.png` via `BrandMark`
 
 ## Commands
 

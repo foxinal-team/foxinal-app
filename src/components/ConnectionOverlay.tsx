@@ -15,6 +15,7 @@ type ConnectionOverlayProps = {
   meta?: string;
   message?: string;
   onRetry?: () => void;
+  retryLabel?: string;
   onDismiss?: () => void;
   dismissLabel?: string;
   /** Flush into a pane (no card border / radius). */
@@ -29,6 +30,7 @@ export function ConnectionOverlay({
   meta,
   message,
   onRetry,
+  retryLabel = "Retry",
   onDismiss,
   dismissLabel = "Close",
   embedded = false,
@@ -101,7 +103,7 @@ export function ConnectionOverlay({
             {onRetry ? (
               <Button type="button" size="sm" onClick={onRetry}>
                 <IconRefresh size={16} stroke={1.75} aria-hidden />
-                <span>Retry</span>
+                <span>{retryLabel}</span>
               </Button>
             ) : null}
             {onDismiss ? (
