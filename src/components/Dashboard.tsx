@@ -935,15 +935,17 @@ export function Dashboard({
           <div
             className={cn(
               "min-h-0 flex-1 overflow-auto [scrollbar-width:thin]",
-              layout === "grid"
-                ? "grid grid-cols-[repeat(auto-fill,minmax(14rem,1fr))] gap-2 content-start"
-                : "flex flex-col gap-1",
+              !hasAnyChildren || !hasVisibleItems
+                ? "flex flex-col"
+                : layout === "grid"
+                  ? "grid grid-cols-[repeat(auto-fill,minmax(14rem,1fr))] gap-2 content-start"
+                  : "flex flex-col gap-1",
               draggingId && "select-none"
             )}
             role="list"
           >
             {!hasAnyChildren ? (
-              <div className="flex flex-col items-center justify-center gap-2 px-4 py-12 text-center">
+              <div className="flex min-h-full flex-1 flex-col items-center justify-center gap-2 px-4 py-12 text-center">
                 <span className="grid size-12 place-items-center rounded-full bg-fox/10 text-fox" aria-hidden>
                   <IconFolders size={24} stroke={1.5} />
                 </span>
@@ -970,7 +972,7 @@ export function Dashboard({
                 </div>
               </div>
             ) : !hasVisibleItems ? (
-              <div className="flex flex-col items-center justify-center gap-2 px-4 py-12 text-center">
+              <div className="flex min-h-full flex-1 flex-col items-center justify-center gap-2 px-4 py-12 text-center">
                 <span className="grid size-12 place-items-center rounded-full bg-fox/10 text-fox" aria-hidden>
                   <IconSearch size={24} stroke={1.5} />
                 </span>
@@ -1015,9 +1017,9 @@ export function Dashboard({
                   type="button"
                   variant="ghost"
                   className="h-auto min-w-0 flex-1 justify-start gap-2.5 rounded-none px-1 py-2 text-left text-ink shadow-none hover:bg-transparent"
-                  title="Open group"
+                  title="Double-click to open group"
                   aria-label={`Open group ${group.name}`}
-                  onClick={() => openGroup(group.id)}
+                  onDoubleClick={() => openGroup(group.id)}
                 >
                   <span className="grid size-9 shrink-0 place-items-center rounded-sm bg-leaf/12 text-[var(--leaf)]" aria-hidden>
                     <IconFolder {...typeIcon} />
@@ -1092,9 +1094,9 @@ export function Dashboard({
                   type="button"
                   variant="ghost"
                   className="h-auto min-w-0 flex-1 justify-start gap-2.5 rounded-none px-1 py-2 text-left text-ink shadow-none hover:bg-transparent"
-                  title="Connect"
+                  title="Double-click to connect"
                   aria-label={`Connect to ${host.name}`}
-                  onClick={() => connectToHost(host)}
+                  onDoubleClick={() => connectToHost(host)}
                 >
                   <span
                     className="grid size-9 shrink-0 place-items-center rounded-sm bg-fox/12 text-fox"

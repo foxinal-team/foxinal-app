@@ -18,8 +18,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SecretInput } from "@/components/ui/secret-input";
 import {
   Select,
   SelectContent,
@@ -528,9 +528,8 @@ export function SettingsDialog({
                       >
                         Current master password
                       </Label>
-                      <Input
+                      <SecretInput
                         id="mp-current"
-                        type="password"
                         autoComplete="current-password"
                         value={currentPassword}
                         onChange={(e) =>
@@ -549,9 +548,8 @@ export function SettingsDialog({
                     >
                       {securityOn ? "New master password" : "Master password"}
                     </Label>
-                    <Input
+                    <SecretInput
                       id="mp-new"
-                      type="password"
                       autoComplete="new-password"
                       value={nextPassword}
                       onChange={(e) => setNextPassword(e.currentTarget.value)}
@@ -567,9 +565,8 @@ export function SettingsDialog({
                     >
                       Confirm master password
                     </Label>
-                    <Input
+                    <SecretInput
                       id="mp-confirm"
-                      type="password"
                       autoComplete="new-password"
                       value={confirmPassword}
                       onChange={(e) =>
@@ -706,9 +703,8 @@ export function SettingsDialog({
                       >
                         Confirm master password
                       </Label>
-                      <Input
+                      <SecretInput
                         id="mp-remove"
-                        type="password"
                         autoComplete="current-password"
                         value={removePassword}
                         onChange={(e) =>

@@ -24,7 +24,10 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import {
+  SecretInput,
+  SecretTextarea,
+} from "@/components/ui/secret-input";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 import type { SaveResult } from "./useInventory";
@@ -329,10 +332,9 @@ export function HostDialog({
                 >
                   <IconLock {...labelIcon} /> Password
                 </Label>
-                <Input
+                <SecretInput
                   id="host-password"
                   name="password"
-                  type="password"
                   value={form.password}
                   onChange={(e) =>
                     updateField("password", e.currentTarget.value)
@@ -350,7 +352,7 @@ export function HostDialog({
                 >
                   <IconKey {...labelIcon} /> Private key
                 </Label>
-                <Textarea
+                <SecretTextarea
                   ref={keyRef}
                   id="host-private-key"
                   name="privateKey"
@@ -360,7 +362,6 @@ export function HostDialog({
                     updateField("privateKey", e.currentTarget.value)
                   }
                   placeholder="Paste private key (PEM)"
-                  spellCheck={false}
                   disabled={submitting}
                   aria-invalid={
                     error.toLowerCase().includes("private key")

@@ -10,6 +10,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SecretToggle } from "@/components/ui/secret-input";
 import { useTheme } from "@/hooks/useTheme";
 import { loadInventory } from "@/inventory/store";
 import type { InventoryItem } from "@/inventory/types";
@@ -34,6 +35,7 @@ function App() {
     return { vaultKey: null, items: loadInventory().items };
   });
   const [password, setPassword] = useState("");
+  const [passwordVisible, setPasswordVisible] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [securityEnabled, setSecurityEnabled] = useState(() =>
@@ -167,7 +169,7 @@ function App() {
                 <Input
                   id="master-password"
                   name="master-password"
-                  type="password"
+                  type={passwordVisible ? "text" : "password"}
                   autoComplete="current-password"
                   autoFocus
                   value={password}
@@ -176,6 +178,11 @@ function App() {
                   disabled={busy}
                   aria-invalid={error ? true : undefined}
                   className="h-auto flex-1 border-0 bg-transparent px-0 py-[0.7rem] font-medium shadow-none focus-visible:border-0 focus-visible:ring-0"
+                />
+                <SecretToggle
+                  visible={passwordVisible}
+                  disabled={busy}
+                  onToggle={() => setPasswordVisible((v) => !v)}
                 />
               </span>
             </div>
