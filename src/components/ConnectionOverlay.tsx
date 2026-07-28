@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -187,10 +186,6 @@ export function ConnectionOverlay({
         >
           <DialogHeader>
             <DialogTitle>Connection logs</DialogTitle>
-            <DialogDescription>
-              Output from the SSH client while connecting
-              {hostLabel ? ` to ${hostLabel}` : ""}.
-            </DialogDescription>
           </DialogHeader>
           <pre
             className="min-h-0 flex-1 overflow-auto rounded-[var(--radius-sm)] border border-line bg-[var(--field-bg)] p-3 font-mono text-[0.75rem] leading-relaxed whitespace-pre-wrap text-ink [scrollbar-width:thin]"
