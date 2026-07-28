@@ -9,8 +9,8 @@ use tauri::{AppHandle, Manager};
 mod sftp;
 
 use sftp::{
-    fs_home_dir, fs_list_dir, fs_mkdir, fs_parent_dir, fs_remove, sftp_connect, sftp_disconnect,
-    sftp_home_dir, sftp_list_dir, sftp_mkdir, sftp_parent_dir, sftp_remove, cancel_sftp_transfer,
+    fs_home_dir, fs_list_dir, fs_mkdir, fs_parent_dir, fs_remove, fs_rename, sftp_connect, sftp_disconnect,
+    sftp_home_dir, sftp_list_dir, sftp_mkdir, sftp_parent_dir, sftp_remove, sftp_rename, cancel_sftp_transfer,
     transfer_entries,
     SftpState,
 };
@@ -268,6 +268,7 @@ pub fn run() {
             fs_parent_dir,
             fs_mkdir,
             fs_remove,
+            fs_rename,
             sftp_connect,
             sftp_disconnect,
             sftp_home_dir,
@@ -275,6 +276,7 @@ pub fn run() {
             sftp_parent_dir,
             sftp_mkdir,
             sftp_remove,
+            sftp_rename,
             cancel_sftp_transfer,
             transfer_entries
         ])

@@ -14,6 +14,7 @@ import {
   IconX,
   IconGripVertical,
   IconCheck,
+  IconPencil,
 } from "@tabler/icons-react";
 import {
   type PointerEvent as ReactPointerEvent,
@@ -37,6 +38,7 @@ import {
   fsListDir,
   fsMkdir,
   fsRemove,
+  fsRename,
   invokeErrorMessage,
   joinLocal,
   joinRemote,
@@ -47,6 +49,7 @@ import {
   sftpListDir,
   sftpMkdir,
   sftpRemove,
+  sftpRename,
 } from "./api";
 import { SftpHostPicker } from "./SftpHostPicker";
 import type { FsEntry, PaneConnection } from "./types";
@@ -107,16 +110,17 @@ export function SftpPane({
   const [deleteTarget, setDeleteTarget] = useState<FsEntry | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [mkdirOpen, setMkdirOpen] = useState(false);
+  const [renameTarget, setRenameTarget] = useState<FsEntry | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const listGenRef = useRef(0);
   const connectReadyRef = useRef(onConnectReady);
   connectReadyRef.current = onConnectReady;
 
   useEffect(() => {
-    const open = deleteTarget !== null || mkdirOpen;
+    const open = deleteTarget !== null || mkdirOpen || renameTarget !== null;
     onBlockingDialogChange?.(open);
     return () => onBlockingDialogChange?.(false);
-  }, [deleteTarget, mkdirOpen, onBlockingDialogChange]);
+  }, [deleteTarget, mkdirOpen, renameTarget, onBlockingDialogChange]);
 
   // Clear stale files as soon as a host connect starts.
   useEffect(() => {
@@ -281,6 +285,76 @@ export function SftpPane({
     const entry = entries.find((e) => e.path === selected[0]);
     if (!entry) return;
     setDeleteTarget(entry);
+  }
+
+  function requestRenameSelected() {
+    if (selected.length !== 1) return;
+    const entry = entries.find((e) => e.path === selected[0]);
+    if (!entry) return;
+    setRenameTarget(entry);
+  }
+
+  async function renameEntry(rawName: string) {
+    const entry = renameTarget;
+    if (!entry) return { ok: false as const, error: "Nothing selected." };
+
+    const name = rawName.trim();
+    if (!name) return { ok: false as const, error: "Enter a name." };
+    if (/[\\/]/.test(name) || name === "." || name === "..") {
+      return {
+        ok: false as const,
+        error: "Name can’t include path separators.",
+      };
+    }
+    if (name === entry.name) {
+      return { ok: true as const };
+    }
+    if (entries.some((e) => e.name === name && e.path !== entry.path)) {
+      return {
+        ok: false as const,
+        error: `“${name}” already exists here.`,
+      };
+    }
+
+    const next =
+      connection.kind === "local"
+        ? joinLocal(path, name)
+        : joinRemote(path, name);
+
+    try {
+      if (connection.kind === "local") await fsRename(entry.path, next);
+      else await sftpRename(connection.sessionId, entry.path, next);
+
+      setEntries((prev) => {
+        const updated = prev.map((e) =>
+          e.path === entry.path
+            ? {
+                ...e,
+                name,
+                path: next,
+                hidden: name.startsWith("."),
+              }
+            : e,
+        );
+        updated.sort((a, b) => {
+          if (a.kind === "dir" && b.kind !== "dir") return -1;
+          if (a.kind !== "dir" && b.kind === "dir") return 1;
+          return a.name.localeCompare(b.name, undefined, {
+            sensitivity: "base",
+          });
+        });
+        return updated;
+      });
+      setSelected([next]);
+      onStatus(`Renamed to “${name}”.`);
+      void loadPath(path, { soft: true });
+      return { ok: true as const };
+    } catch (err) {
+      return {
+        ok: false as const,
+        error: invokeErrorMessage(err, "Rename failed."),
+      };
+    }
   }
 
   function toggleSelect(path: string, additive: boolean) {
@@ -488,6 +562,18 @@ export function SftpPane({
             onClick={() => setMkdirOpen(true)}
           >
             <IconFolderPlus {...iconSm} aria-hidden />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="size-8"
+            title="Rename"
+            aria-label="Rename selected"
+            disabled={showOverlay || selected.length !== 1}
+            onClick={requestRenameSelected}
+          >
+            <IconPencil {...iconSm} aria-hidden />
           </Button>
           <Button
             type="button"
@@ -723,6 +809,26 @@ export function SftpPane({
         onClose={() => setMkdirOpen(false)}
         onSubmitName={(name) => createFolder(name)}
         icon={<IconFolderPlus size={22} stroke={1.75} aria-hidden />}
+        submitIcon={<IconCheck size={16} stroke={1.75} aria-hidden />}
+        cancelIcon={<IconX size={16} stroke={1.75} aria-hidden />}
+      />
+
+      <NameDialog
+        open={renameTarget !== null}
+        title={renameTarget?.kind === "dir" ? "Rename folder" : "Rename file"}
+        lede={
+          renameTarget
+            ? `Rename “${renameTarget.name}”`
+            : "Select a file or folder first."
+        }
+        submitLabel="Rename"
+        placeholder="New name"
+        initialName={renameTarget?.name ?? ""}
+        emptyError="Enter a name."
+        saveError="Could not rename."
+        onClose={() => setRenameTarget(null)}
+        onSubmitName={(name) => renameEntry(name)}
+        icon={<IconPencil size={22} stroke={1.75} aria-hidden />}
         submitIcon={<IconCheck size={16} stroke={1.75} aria-hidden />}
         cancelIcon={<IconX size={16} stroke={1.75} aria-hidden />}
       />

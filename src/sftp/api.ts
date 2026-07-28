@@ -49,6 +49,10 @@ export async function fsRemove(path: string): Promise<void> {
   await invoke("fs_remove", { path });
 }
 
+export async function fsRename(from: string, to: string): Promise<void> {
+  await invoke("fs_rename", { from, to });
+}
+
 export async function sftpConnect(host: HostItem): Promise<SftpConnectResult> {
   return invoke<SftpConnectResult>("sftp_connect", {
     address: host.address,
@@ -94,6 +98,14 @@ export async function sftpRemove(
   isDir: boolean,
 ): Promise<void> {
   await invoke("sftp_remove", { sessionId, path, isDir });
+}
+
+export async function sftpRename(
+  sessionId: string,
+  from: string,
+  to: string,
+): Promise<void> {
+  await invoke("sftp_rename", { sessionId, from, to });
 }
 
 export async function transferEntries(input: {

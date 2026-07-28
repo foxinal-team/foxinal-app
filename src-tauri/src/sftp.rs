@@ -570,6 +570,23 @@ pub async fn fs_remove(path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub async fn fs_rename(from: String, to: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let from = PathBuf::from(&from);
+        let to = PathBuf::from(&to);
+        if !from.exists() {
+            return Err("Source path does not exist.".into());
+        }
+        if to.exists() {
+            return Err("A file or folder with that name already exists.".into());
+        }
+        fs::rename(&from, &to).map_err(|e| format!("Failed to rename: {e}"))
+    })
+    .await
+    .map_err(|e| format!("Rename task failed: {e}"))?
+}
+
+#[tauri::command]
 pub async fn sftp_connect(
     state: State<'_, SftpState>,
     address: String,
@@ -796,6 +813,66 @@ pub async fn sftp_remove(
     let sid = session_id.clone();
     let joined = tauri::async_runtime::spawn_blocking(move || {
         let result = remove_remote(&live.session, &path, is_dir);
+        (result, live)
+    })
+    .await
+    .map_err(|e| format!("SFTP task failed: {e}"))?;
+
+    let (result, live) = joined;
+    put_session(&state, sid, live)?;
+    result
+}
+
+fn rename_remote(session: &Session, from: &str, to: &str) -> Result<(), String> {
+    let from = from.trim();
+    let to = to.trim();
+    if from.is_empty() || to.is_empty() {
+        return Err("Source and destination paths are required.".into());
+    }
+    if from == to {
+        return Ok(());
+    }
+    assert_safe_remote_delete(from)?;
+    assert_safe_remote_delete(to)?;
+
+    let cmd = format!("mv -- {} {}", shell_quote(from), shell_quote(to));
+    match exec_command(session, &cmd) {
+        Ok((0, _)) => Ok(()),
+        Ok((status, stderr)) => {
+            let sftp = session
+                .sftp()
+                .map_err(|e| format!("SFTP open failed: {e}"))?;
+            sftp.rename(Path::new(from), Path::new(to), None)
+                .map_err(|e| {
+                    let detail = stderr.trim();
+                    if detail.is_empty() {
+                        format!("Failed to rename (exit {status}): {e}")
+                    } else {
+                        format!("Failed to rename: {detail}")
+                    }
+                })
+        }
+        Err(exec_err) => {
+            let sftp = session
+                .sftp()
+                .map_err(|e| format!("SFTP open failed: {e}"))?;
+            sftp.rename(Path::new(from), Path::new(to), None)
+                .map_err(|e| format!("{exec_err} (SFTP fallback also failed: {e})"))
+        }
+    }
+}
+
+#[tauri::command]
+pub async fn sftp_rename(
+    state: State<'_, SftpState>,
+    session_id: String,
+    from: String,
+    to: String,
+) -> Result<(), String> {
+    let live = take_session(&state, &session_id)?;
+    let sid = session_id.clone();
+    let joined = tauri::async_runtime::spawn_blocking(move || {
+        let result = rename_remote(&live.session, &from, &to);
         (result, live)
     })
     .await
