@@ -66,12 +66,14 @@ src/
 - **Duplicate host** (copy icon) opens prefilled create dialog (`name copy`, same credentials)
 - Dashboard: **search** current folder **and nested** groups/hosts (shows relative path), **list/grid** + **A–Z / Z–A** (`foxinal-inventory-layout`, `foxinal-inventory-sort`)
 - **Import / Export** JSON (`foxinal-inventory` v1): at root = whole inventory; inside a group = that group’s subtree / import into that group
-- **Inventory** — click (or Enter) a group to open / a host to connect; grip-drag to move
+- **Inventory** — double-click a group to open / a host to connect; grip-drag to move
 - **Drag-and-drop**: pointer-based (not HTML5 — unreliable in Tauri WebKit); grip `onPointerDown` → window `pointermove`/`pointerup` + `elementsFromPoint` on `[data-fox-drop]`; drop opens destination; blocked for self/descendant / name clash / already there
 - **SFTP** — dual panes; ⌘/Ctrl multi-select + grip-drag copy; concurrent transfers with separate progress/cancel; browse works while transferring; optimistic delete & soft refresh
 - Password auth auto-types when SSH password prompt appears; temp keys cleaned via `cleanup_ssh_temp`
-- SSH launch (`prepare_ssh_launch`): `ServerAliveInterval=30`, `ServerAliveCountMax=3`, `TCPKeepAlive=yes` so idle tabs survive app switch / NAT timeouts
-- SSH disconnect after ready → Disconnected overlay with **Reconnect** (same tab / host); first-connect failures keep **Retry**
+- SSH launch (`prepare_ssh_launch`): Foxinal `ssh_known_hosts` in app data (`StrictHostKeyChecking=accept-new`, ignores `~/.ssh` / global known_hosts); keepalive `ServerAliveInterval=30` / `CountMax=3` / `TCPKeepAlive=yes`
+- Host key mismatch → overlay **Trust host & retry** (`clear_ssh_host_key` then reconnect)
+- Connection fail / disconnect overlay → **Show logs** (captured SSH/PTY output, copyable)
+- SSH disconnect after ready → Disconnected overlay with **Reconnect**; first-connect failures keep **Retry**
 - Local navbar item opens another OS shell tab
 
 ## UI theme
@@ -111,4 +113,4 @@ pnpm dev            # frontend only — terminal/SSH fail without Tauri
 - Prefer `@/` imports for `components`, `hooks`, `lib`, and feature modules
 - A11y: label icon-only controls; use `inert` on parked session/SFTP panes; inventory opens on click/Enter; SFTP folders open on Enter; toggles use `aria-pressed`
 - Never commit `src-tauri/target/`, `node_modules/`, `dist/`, `.env` / `.env.*` (keep `.env.example`), `.pnpm-store/`
-- Next: recovery key, OS keychain, host-key UX, jump hosts, server sync
+- Next: recovery key, OS keychain, richer host-key UX (fingerprint prompt), jump hosts, server sync

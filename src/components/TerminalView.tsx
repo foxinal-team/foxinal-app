@@ -57,6 +57,7 @@ const SSH_ERROR_PATTERNS: Array<{ re: RegExp; label: string }> = [
 ];
 
 const CONNECT_TIMEOUT_MS = 45_000;
+const CONNECT_LOG_MAX = 12_000;
 
 function decodePtyChunk(data: string | Uint8Array): string {
   if (typeof data === "string") return data;
@@ -65,6 +66,13 @@ function decodePtyChunk(data: string | Uint8Array): string {
 
 function stripAnsi(input: string): string {
   return input.replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "");
+}
+
+function formatConnectionLog(raw: string): string {
+  return stripAnsi(raw)
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .trim();
 }
 
 function looksLikePasswordPrompt(buffer: string): boolean {
@@ -120,6 +128,7 @@ export function TerminalView({
     session.kind === "local" ? "ready" : "connecting",
   );
   const [error, setError] = useState<string | null>(null);
+  const [errorLog, setErrorLog] = useState<string | null>(null);
   /** True once an SSH session reached ready — exit then means reconnect, not first-connect retry. */
   const [canReconnect, setCanReconnect] = useState(false);
 
@@ -143,6 +152,7 @@ export function TerminalView({
     const isSsh = session.kind === "ssh";
     setPhase(isSsh ? "connecting" : "ready");
     setError(null);
+    setErrorLog(null);
     setCanReconnect(false);
 
     function markReady() {
@@ -151,15 +161,27 @@ export function TerminalView({
       window.clearTimeout(readyTimer);
       setPhase("ready");
       setError(null);
+      setErrorLog(null);
       if (isSsh) setCanReconnect(true);
     }
 
-    function markError(message: string, reconnectable = false) {
+    function markError(
+      message: string,
+      reconnectable = false,
+      log: string | null = null,
+    ) {
       if (disposed) return;
       window.clearTimeout(connectTimer);
       window.clearTimeout(readyTimer);
       setPhase("error");
       setError(message);
+      const formatted = log ? formatConnectionLog(log) : "";
+      setErrorLog(
+        formatted ||
+          (message.trim()
+            ? message.trim()
+            : "No connection output was captured."),
+      );
       if (reconnectable) setCanReconnect(true);
     }
 
@@ -217,7 +239,12 @@ export function TerminalView({
           connectTimer = window.setTimeout(() => {
             if (!settled) {
               settled = true;
-              markError("Connection timed out. Check the host and try again.");
+              markError(
+                "Connection timed out. Check the host and try again.",
+                false,
+                outputBuffer ||
+                  "No output received before the connection timed out.",
+              );
             }
           }, CONNECT_TIMEOUT_MS);
         }
@@ -239,7 +266,9 @@ export function TerminalView({
 
             if (!isSsh) return;
 
-            outputBuffer = (outputBuffer + decodePtyChunk(data)).slice(-1200);
+            outputBuffer = (outputBuffer + decodePtyChunk(data)).slice(
+              -CONNECT_LOG_MAX,
+            );
 
             if (
               savedPassword &&
@@ -260,7 +289,7 @@ export function TerminalView({
             const sshError = extractSshError(outputBuffer);
             if (sshError) {
               settled = true;
-              markError(sshError);
+              markError(sshError, false, outputBuffer);
               return;
             }
 
@@ -281,7 +310,7 @@ export function TerminalView({
                 const lateError = extractSshError(outputBuffer);
                 if (lateError) {
                   settled = true;
-                  markError(lateError);
+                  markError(lateError, false, outputBuffer);
                   return;
                 }
                 if (outputBuffer.trim().length > 0) {
@@ -302,6 +331,9 @@ export function TerminalView({
             term?.writeln(`\r\n[process exited with code ${exitCode}]`);
             if (!isSsh) return;
 
+            const exitNote = `\n[process exited with code ${exitCode}]`;
+            const log = `${outputBuffer}${exitNote}`;
+
             if (!settled) {
               settled = true;
               const sshError = extractSshError(outputBuffer);
@@ -310,6 +342,8 @@ export function TerminalView({
                   (exitCode === 0
                     ? "Connection closed before the session was ready."
                     : `Connection failed (exit ${exitCode}).`),
+                false,
+                log,
               );
               return;
             }
@@ -322,6 +356,7 @@ export function TerminalView({
                   ? "Session ended."
                   : `Connection lost (exit ${exitCode}).`),
               true,
+              log,
             );
           }),
         );
@@ -349,7 +384,7 @@ export function TerminalView({
             : typeof err === "string"
               ? err
               : "Could not start the session. Run the app with `pnpm tauri dev`.";
-        markError(message);
+        markError(message, false, message);
       }
     }
 
@@ -422,12 +457,31 @@ export function TerminalView({
   }
 
   const errorTitle = canReconnect ? "Disconnected" : "Connection failed";
-  const errorMessage =
-    error ||
-    (canReconnect
-      ? "The SSH session ended. Reconnect to continue."
-      : "Something went wrong while connecting.");
+  const isHostKeyError =
+    !!error && /host key verification failed/i.test(error);
+  const errorMessage = isHostKeyError
+    ? "This host’s SSH key is new or has changed. Trust it only if you expect that (reinstall, rebuild, or IP reuse)."
+    : error ||
+      (canReconnect
+        ? "The SSH session ended. Reconnect to continue."
+        : "Something went wrong while connecting.");
   const retryLabel = canReconnect ? "Reconnect" : "Retry";
+
+  async function trustHostAndRetry() {
+    if (session.kind !== "ssh") {
+      retry();
+      return;
+    }
+    try {
+      await invoke("clear_ssh_host_key", {
+        address: session.host.address,
+        port: session.host.port,
+      });
+    } catch {
+      // Still retry — prepare_ssh_launch may accept-new on a clean file.
+    }
+    retry();
+  }
 
   return (
     <section
@@ -492,6 +546,8 @@ export function TerminalView({
               host ? host.name || hostSummary(host) : undefined
             }
             message={errorMessage}
+            logs={errorLog}
+            onTrustHost={isHostKeyError ? () => void trustHostAndRetry() : undefined}
             onRetry={retry}
             retryLabel={retryLabel}
             onDismiss={onCloseSession}

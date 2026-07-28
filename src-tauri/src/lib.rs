@@ -3,6 +3,8 @@ use std::collections::HashMap;
 use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
+use std::process::Command;
+use tauri::{AppHandle, Manager};
 
 mod sftp;
 
@@ -12,6 +14,36 @@ use sftp::{
     transfer_entries,
     SftpState,
 };
+
+const KNOWN_HOSTS_FILE: &str = "ssh_known_hosts";
+
+fn app_known_hosts_path(app: &AppHandle) -> Result<PathBuf, String> {
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Could not resolve app data dir: {e}"))?;
+    fs::create_dir_all(&dir).map_err(|e| format!("Could not create app data dir: {e}"))?;
+    Ok(dir.join(KNOWN_HOSTS_FILE))
+}
+
+fn global_known_hosts_null() -> &'static str {
+    if cfg!(windows) {
+        "NUL"
+    } else {
+        "/dev/null"
+    }
+}
+
+fn known_hosts_host_patterns(address: &str, port: u16) -> Vec<String> {
+    let address = address.trim();
+    let mut hosts = vec![address.to_string(), format!("[{address}]:{port}")];
+    if port == 22 {
+        hosts.push(format!("[{address}]"));
+    }
+    hosts.sort();
+    hosts.dedup();
+    hosts
+}
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -42,6 +74,7 @@ fn default_shell() -> String {
 
 #[tauri::command]
 fn prepare_ssh_launch(
+    app: AppHandle,
     address: String,
     port: u16,
     username: String,
@@ -66,11 +99,23 @@ fn prepare_ssh_launch(
         "ssh".to_string()
     };
 
+    // Use Foxinal's own known_hosts so ~/.ssh mismatches don't block connects.
+    let known_hosts = app_known_hosts_path(&app)?;
+    // Ensure the file exists — OpenSSH can error if UserKnownHostsFile is missing.
+    if !known_hosts.exists() {
+        fs::File::create(&known_hosts)
+            .map_err(|e| format!("Could not create known_hosts file: {e}"))?;
+    }
+
     let mut args = vec![
         "-p".to_string(),
         port.to_string(),
         "-o".to_string(),
         "StrictHostKeyChecking=accept-new".to_string(),
+        "-o".to_string(),
+        format!("UserKnownHostsFile={}", known_hosts.display()),
+        "-o".to_string(),
+        format!("GlobalKnownHostsFile={}", global_known_hosts_null()),
         // Keep idle sessions alive when Foxinal is backgrounded (NAT / server idle kills).
         "-o".to_string(),
         "ServerAliveInterval=30".to_string(),
@@ -127,6 +172,48 @@ fn cleanup_ssh_temp(paths: Vec<String>) -> Result<(), String> {
     Ok(())
 }
 
+/// Remove a host from Foxinal's known_hosts so the next connect can accept a new key.
+#[tauri::command]
+fn clear_ssh_host_key(app: AppHandle, address: String, port: u16) -> Result<(), String> {
+    let address = address.trim();
+    if address.is_empty() {
+        return Err("Host address is required.".into());
+    }
+    if port == 0 {
+        return Err("Invalid SSH port.".into());
+    }
+
+    let known_hosts = app_known_hosts_path(&app)?;
+    if !known_hosts.exists() {
+        return Ok(());
+    }
+
+    let program = if cfg!(windows) {
+        "ssh-keygen.exe"
+    } else {
+        "ssh-keygen"
+    };
+
+    for host in known_hosts_host_patterns(address, port) {
+        let _ = Command::new(program)
+            .args([
+                "-R",
+                &host,
+                "-f",
+                &known_hosts.to_string_lossy(),
+            ])
+            .output();
+    }
+
+    // ssh-keygen leaves a `.old` backup — drop it quietly.
+    let old = PathBuf::from(format!("{}.old", known_hosts.display()));
+    if old.exists() {
+        let _ = fs::remove_file(&old);
+    }
+
+    Ok(())
+}
+
 fn write_temp_private_key(private_key: &str) -> Result<PathBuf, String> {
     let mut path = std::env::temp_dir();
     path.push(format!("foxinal-ssh-{}.key", uuid_like()));
@@ -175,6 +262,7 @@ pub fn run() {
             default_shell,
             prepare_ssh_launch,
             cleanup_ssh_temp,
+            clear_ssh_host_key,
             fs_home_dir,
             fs_list_dir,
             fs_parent_dir,
