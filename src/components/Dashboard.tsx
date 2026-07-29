@@ -992,7 +992,7 @@ export function Dashboard({
               <div
                 key={group.id}
                 className={cn(
-                  "flex items-stretch gap-0.5 rounded-md border border-line bg-surface shadow-(--shadow-sm) backdrop-blur-[var(--blur-sm)]",
+                  "flex cursor-pointer items-stretch gap-0.5 rounded-md border border-line bg-surface shadow-(--shadow-sm) backdrop-blur-[var(--blur-sm)]",
                   layout === "grid" && "flex-col",
                   isDragging && "opacity-45",
                   isDropTarget && "border-fox/50 bg-fox/8 outline outline-dashed outline-fox/40"
@@ -1000,6 +1000,13 @@ export function Dashboard({
                 role="listitem"
                 data-fox-drop={group.id}
                 data-fox-drop-kind="group"
+                title="Double-click to open group"
+                onDoubleClick={(e) => {
+                  if ((e.target as HTMLElement).closest("[data-fox-card-action]")) {
+                    return;
+                  }
+                  openGroup(group.id);
+                }}
               >
                 <Button
                   type="button"
@@ -1009,18 +1016,13 @@ export function Dashboard({
                   title="Drag to move"
                   aria-label={`Drag ${group.name} to move`}
                   tabIndex={-1}
+                  data-fox-card-action=""
                   onPointerDown={(e) => beginPointerDrag(e, group.id)}
+                  onDoubleClick={(e) => e.stopPropagation()}
                 >
                   <IconGripVertical {...actionIcon} aria-hidden />
                 </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="h-auto min-w-0 flex-1 justify-start gap-2.5 rounded-none px-1 py-2 text-left text-ink shadow-none hover:bg-transparent"
-                  title="Double-click to open group"
-                  aria-label={`Open group ${group.name}`}
-                  onDoubleClick={() => openGroup(group.id)}
-                >
+                <div className="flex min-w-0 flex-1 items-center gap-2.5 px-1 py-2 text-left text-ink">
                   <span className="grid size-9 shrink-0 place-items-center rounded-sm bg-leaf/12 text-[var(--leaf)]" aria-hidden>
                     <IconFolder {...typeIcon} />
                   </span>
@@ -1031,8 +1033,12 @@ export function Dashboard({
                       <span className="truncate text-[0.75rem] text-ink-muted">{location}</span>
                     ) : null}
                   </span>
-                </Button>
-                <div className="flex shrink-0 items-center gap-0.5">
+                </div>
+                <div
+                  className="flex shrink-0 items-center gap-0.5"
+                  data-fox-card-action=""
+                  onDoubleClick={(e) => e.stopPropagation()}
+                >
                   <Button
                     type="button"
                     variant="ghost"
@@ -1072,11 +1078,18 @@ export function Dashboard({
               <div
                 key={host.id}
                 className={cn(
-                  "flex items-stretch gap-0.5 rounded-md border border-line bg-surface shadow-(--shadow-sm) backdrop-blur-[var(--blur-sm)]",
+                  "flex cursor-pointer items-stretch gap-0.5 rounded-md border border-line bg-surface shadow-(--shadow-sm) backdrop-blur-[var(--blur-sm)]",
                   layout === "grid" && "flex-col",
                   isDragging && "opacity-45"
                 )}
                 role="listitem"
+                title="Double-click to connect"
+                onDoubleClick={(e) => {
+                  if ((e.target as HTMLElement).closest("[data-fox-card-action]")) {
+                    return;
+                  }
+                  connectToHost(host);
+                }}
               >
                 <Button
                   type="button"
@@ -1086,18 +1099,13 @@ export function Dashboard({
                   title="Drag to move"
                   aria-label={`Drag ${host.name} to move`}
                   tabIndex={-1}
+                  data-fox-card-action=""
                   onPointerDown={(e) => beginPointerDrag(e, host.id)}
+                  onDoubleClick={(e) => e.stopPropagation()}
                 >
                   <IconGripVertical {...actionIcon} aria-hidden />
                 </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="h-auto min-w-0 flex-1 justify-start gap-2.5 rounded-none px-1 py-2 text-left text-ink shadow-none hover:bg-transparent"
-                  title="Double-click to connect"
-                  aria-label={`Connect to ${host.name}`}
-                  onDoubleClick={() => connectToHost(host)}
-                >
+                <div className="flex min-w-0 flex-1 items-center gap-2.5 px-1 py-2 text-left text-ink">
                   <span
                     className="grid size-9 shrink-0 place-items-center rounded-sm bg-fox/12 text-fox"
                     aria-hidden
@@ -1109,8 +1117,12 @@ export function Dashboard({
                     <span className="truncate text-[0.9rem] font-bold text-ink">{host.name}</span>
                     <span className="truncate text-[0.75rem] text-ink-muted">{meta}</span>
                   </span>
-                </Button>
-                <div className="flex shrink-0 items-center gap-0.5">
+                </div>
+                <div
+                  className="flex shrink-0 items-center gap-0.5"
+                  data-fox-card-action=""
+                  onDoubleClick={(e) => e.stopPropagation()}
+                >
                   <Button
                     type="button"
                     variant="ghost"

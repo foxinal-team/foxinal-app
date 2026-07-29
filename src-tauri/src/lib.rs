@@ -251,6 +251,22 @@ fn uuid_like() -> String {
     format!("{nanos:x}")
 }
 
+#[tauri::command]
+fn clipboard_write_text(text: String) -> Result<(), String> {
+    arboard::Clipboard::new()
+        .map_err(|e| format!("Clipboard unavailable: {e}"))?
+        .set_text(text)
+        .map_err(|e| format!("Could not copy: {e}"))
+}
+
+#[tauri::command]
+fn clipboard_read_text() -> Result<String, String> {
+    arboard::Clipboard::new()
+        .map_err(|e| format!("Clipboard unavailable: {e}"))?
+        .get_text()
+        .map_err(|e| format!("Could not paste: {e}"))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -263,6 +279,8 @@ pub fn run() {
             prepare_ssh_launch,
             cleanup_ssh_temp,
             clear_ssh_host_key,
+            clipboard_write_text,
+            clipboard_read_text,
             fs_home_dir,
             fs_list_dir,
             fs_parent_dir,

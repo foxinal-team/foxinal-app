@@ -75,6 +75,46 @@ function formatConnectionLog(raw: string): string {
     .trim();
 }
 
+async function writeClipboardText(text: string): Promise<void> {
+  try {
+    await invoke("clipboard_write_text", { text });
+  } catch {
+    await navigator.clipboard.writeText(text);
+  }
+}
+
+async function readClipboardText(): Promise<string> {
+  try {
+    return await invoke<string>("clipboard_read_text");
+  } catch {
+    return navigator.clipboard.readText();
+  }
+}
+
+function isCopyChord(e: KeyboardEvent): boolean {
+  const key = e.key.toLowerCase();
+  if (e.metaKey && !e.ctrlKey && !e.altKey && key === "c") return true;
+  if (e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey && key === "c") {
+    return true;
+  }
+  if (e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey && e.key === "Insert") {
+    return true;
+  }
+  return false;
+}
+
+function isPasteChord(e: KeyboardEvent): boolean {
+  const key = e.key.toLowerCase();
+  if (e.metaKey && !e.ctrlKey && !e.altKey && key === "v") return true;
+  if (e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey && key === "v") {
+    return true;
+  }
+  if (e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey && e.key === "Insert") {
+    return true;
+  }
+  return false;
+}
+
 function looksLikePasswordPrompt(buffer: string): boolean {
   const text = stripAnsi(buffer).replace(/\r/g, "");
   return /(?:password|passphrase)[^:\n]*:\s*$/i.test(text);
@@ -259,6 +299,64 @@ export function TerminalView({
           },
         });
         ptyRef.current = pty;
+
+        const writePaste = (text: string) => {
+          if (!text || disposed || !pty) return;
+          // Terminals expect CR for line breaks.
+          pty.write(text.replace(/\r\n/g, "\r").replace(/\n/g, "\r"));
+        };
+
+        // Key chord paste sets this so the following browser `paste` event
+        // doesn't insert a second copy (common with Ctrl+Shift+V / ⌘V).
+        let suppressNextBrowserPaste = false;
+
+        const onBrowserPaste = (e: Event) => {
+          const ev = e as ClipboardEvent;
+          ev.preventDefault();
+          ev.stopPropagation();
+          if (suppressNextBrowserPaste) {
+            suppressNextBrowserPaste = false;
+            return;
+          }
+          const text = ev.clipboardData?.getData("text/plain") ?? "";
+          writePaste(text);
+        };
+
+        const pasteTarget =
+          (term as { textarea?: HTMLTextAreaElement | null }).textarea ??
+          hostEl;
+        pasteTarget.addEventListener("paste", onBrowserPaste, true);
+        disposables.push({
+          dispose: () =>
+            pasteTarget.removeEventListener("paste", onBrowserPaste, true),
+        });
+
+        // Linux/Windows: Ctrl+Shift+C/V · macOS: ⌘C/⌘V · also Ctrl/Shift+Insert.
+        term.attachCustomKeyEventHandler((ev) => {
+          if (ev.type !== "keydown") return true;
+
+          if (isCopyChord(ev)) {
+            const selection = term?.getSelection() ?? "";
+            if (selection) {
+              void writeClipboardText(selection).catch(() => undefined);
+            }
+            return false;
+          }
+
+          if (isPasteChord(ev)) {
+            suppressNextBrowserPaste = true;
+            void readClipboardText()
+              .then((text) => {
+                if (!disposed) writePaste(text);
+              })
+              .catch(() => {
+                suppressNextBrowserPaste = false;
+              });
+            return false;
+          }
+
+          return true;
+        });
 
         disposables.push(
           pty.onData((data) => {
