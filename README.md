@@ -1,23 +1,56 @@
-# Foxinal
-
-SSH connection manager for your desktop. Organize hosts in nested groups, open multi-tab local shells and SSH sessions, and keep everything on-device for now.
-
-> **Status:** early / in progress. Built with Tauri 2 + React. Grab installers from [Releases](https://github.com/foxinal-team/foxinal-app/releases).
-
 <p align="center">
-  <img src="public/foxinal-icon.png" alt="Foxinal" width="96" height="96" />
+  <img src="public/foxinal-icon.png" alt="Foxinal" width="112" height="112" />
 </p>
 
-## Download (macOS)
+<h1 align="center">Foxinal</h1>
 
-Builds are **not Apple-signed** yet (no Developer Program). Gatekeeper may say the app is *damaged* or block it after download — that is normal for unsigned apps, not a corrupt file.
+<p align="center">
+  <strong>SSH connections, organized.</strong><br />
+  Local-first desktop app for nested host groups, multi-tab terminals, and SFTP.
+</p>
 
-1. Open the latest [Release](https://github.com/foxinal-team/foxinal-app/releases).
-2. Pick the right DMG for your Mac:
-   - **Apple Silicon** (M series): `foxinal_*_aarch64.dmg`
-   - **Intel Mac**: `foxinal_*_x64.dmg`
+<p align="center">
+  <a href="https://github.com/foxinal-team/foxinal-app/releases/latest"><img src="https://img.shields.io/github/v/release/foxinal-team/foxinal-app?style=flat-square&color=ea580c&label=latest" alt="Latest release" /></a>
+  <a href="https://github.com/foxinal-team/foxinal-app/releases"><img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux-111827?style=flat-square" alt="Platforms: macOS and Linux" /></a>
+  <a href="https://tauri.app/"><img src="https://img.shields.io/badge/built%20with-Tauri%202-24c8db?style=flat-square" alt="Built with Tauri 2" /></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/foxinal-team/foxinal-app/releases/latest"><b>Download latest release</b></a>
+  ·
+  <a href="#features">Features</a>
+  ·
+  <a href="#development">Development</a>
+</p>
+
+---
+
+Foxinal keeps your inventory **on this device** — no account required. Open local shells and SSH sessions in tabs, browse files over SFTP, and optionally lock everything behind a master password.
+
+> **Status:** early / in progress. Grab installers from [Releases](https://github.com/foxinal-team/foxinal-app/releases). Draft CI builds are not listed under “latest” until published.
+
+## Download
+
+Installers ship for **macOS** and **Linux** from the same release page.
+
+| Platform | What to get | Notes |
+|----------|-------------|--------|
+| **macOS** Apple Silicon (M series) | `foxinal_*_aarch64.dmg` | Not Apple-signed yet — see Gatekeeper steps below |
+| **macOS** Intel | `foxinal_*_x64.dmg` | Same as above |
+| **Linux** (portable) | `foxinal_*_amd64.AppImage` | `chmod +x` then run |
+| **Linux** Debian/Ubuntu | `foxinal_*_amd64.deb` | `sudo dpkg -i …` |
+| **Linux** Fedora/RHEL | `foxinal_*-*.x86_64.rpm` | `sudo rpm -i …` |
+
+Windows builds are not published yet.
+
+### macOS install
+
+Builds are **not Apple-signed** (no Developer Program). Gatekeeper may say the app is *damaged* or blocked after download — that is normal for unsigned apps, not a corrupt file.
+
+1. Open the [latest release](https://github.com/foxinal-team/foxinal-app/releases/latest).
+2. Download the DMG that matches your Mac (**aarch64** or **x64**).
 3. Open the DMG and drag **foxinal** into **Applications**.
-4. Clear the quarantine flag, then open the app normally (double-click):
+4. Clear the quarantine flag, then open the app normally:
 
 ```bash
 xattr -cr /Applications/foxinal.app
@@ -25,19 +58,28 @@ xattr -cr /Applications/foxinal.app
 
 If macOS still blocks it: right-click the app → **Open** → **Open**.
 
-**Linux:** use the `.AppImage` (then `chmod +x` and run), or install the `.deb` / `.rpm` from the same release.
+### Linux install
+
+1. Open the [latest release](https://github.com/foxinal-team/foxinal-app/releases/latest).
+2. Choose **AppImage**, **.deb**, or **.rpm**.
+3. For AppImage:
+
+```bash
+chmod +x foxinal_*_amd64.AppImage
+./foxinal_*_amd64.AppImage
+```
 
 ## Features
 
-- **Local-first** — opens straight into the app; no account required
-- **Optional master password** — encrypts inventory (AES-GCM); unlock screen on launch
-- **Lock prefs** — optional auto-lock on idle, and lock when the app is hidden/unfocused
-- **Nested inventory** — groups and SSH hosts with search, list/grid layout, and A–Z sorting
-- **Multi-tab sessions** — local OS terminal and SSH tabs stay alive while you switch or visit the dashboard
-- **SSH auth** — password (auto-typed at prompt) or private key
-- **Drag-and-drop** — move hosts/groups with the grip handle; drop on a group or breadcrumb
-- **SFTP** — dual-pane local/remote file browser with drag-and-drop transfers
-- **Import / export** — JSON inventory (whole tree or current group subtree)
+- **Local-first** — opens straight into the app; no cloud account
+- **Optional master password** — AES-GCM encrypted inventory; unlock on launch
+- **Lock prefs** — auto-lock on idle; lock when the app is hidden
+- **Nested inventory** — groups + hosts, search, list/grid, A–Z sort, import/export JSON
+- **Multi-tab sessions** — local terminal and SSH tabs stay alive while you switch views
+- **SSH auth** — password (auto-typed at the prompt) or private key
+- **Host keys** — Foxinal-managed `known_hosts`; trust & retry when a key changes
+- **SFTP** — dual-pane browser, rename/mkdir/delete, drag-and-drop transfers
+- **Updates** — in-app “check for updates” opens the GitHub release (no auto-install)
 - **Settings** — terminal font, size, and theme (Match app / Dark / Light / Fox)
 
 ## Stack
@@ -52,12 +94,10 @@ If macOS still blocks it: right-click the app → **Open** → **Open**.
 ### Frontend layout
 
 - `src/components/ui/` — shadcn primitives (`pnpm dlx shadcn@latest add <name>`)
-- `src/components/` — `BrandMark`, `Atmosphere`, `ThemeToggle`, `Dashboard`, `TerminalView`, `ConnectionOverlay`, `DialogIcon`
+- `src/components/` — app shell (`Dashboard`, `TerminalView`, `BrandMark`, …)
 - `src/hooks/` — `useTheme`, `useLockGuards`
-- `src/lib/` — `utils` (`cn`), `sessions`, `version`
-- `src/index.css` — Tailwind + Foxinal/shadcn tokens (UI is utilities + shadcn)
-- `src/styles/xterm-host.css` — FitAddon-safe xterm host padding (imported by TerminalView)
-- UI font: `@fontsource/space-grotesk` (local bundle; no CDN)
+- `src/lib/` — `utils` (`cn`), `sessions`, `version`, `updates`, `toast`
+- `src/index.css` — Tailwind + Foxinal tokens
 - Feature modules: `inventory/`, `settings/`, `sftp/`, `security/`
 - Path alias: `@/` → `src/`
 
@@ -65,14 +105,14 @@ If macOS still blocks it: right-click the app → **Open** → **Open**.
 
 - [Node.js](https://nodejs.org/) (LTS) and [pnpm](https://pnpm.io/installation)
 - [Rust](https://www.rust-lang.org/tools/install) toolchain
-- Tauri platform deps for your OS — see [Tauri prerequisites](https://tauri.app/start/prerequisites/)
-- `ssh` available on `PATH` (used for remote sessions)
+- Tauri platform deps — see [Tauri prerequisites](https://tauri.app/start/prerequisites/)
+- `ssh` on `PATH` (used for remote sessions)
 
 ## Setup
 
 ```bash
 git clone https://github.com/foxinal-team/foxinal-app.git
-cd foxinal
+cd foxinal-app
 pnpm install
 ```
 
@@ -83,7 +123,7 @@ pnpm install
 pnpm tauri dev
 ```
 
-Frontend-only Vite (`pnpm dev`) runs the UI at `http://localhost:1420`, but terminal and SSH will not work without Tauri.
+`pnpm dev` runs the UI only at `http://localhost:1420` — terminal and SSH need Tauri.
 
 ## Build
 
@@ -95,19 +135,21 @@ Installers land under `src-tauri/target/release/bundle/`.
 
 ## Usage notes
 
-- Master password (optional) encrypts inventory with AES-GCM (`foxinal-inventory-vault`). Without it, inventory stays plaintext in `foxinal-inventory`.
-- Settings → Account → Security also controls **auto-lock** and **lock when hidden/unfocused** (off by default; require a master password).
-- Double-click a **group** to open it; double-click a **host** to connect in a new tab.
-- Drag from the **grip** on a row to nest under another group or move via breadcrumbs.
-- Regenerate app icons from the master art: `pnpm tauri icon app-icon.png`
+- Master password (optional) encrypts inventory (`foxinal-inventory-vault`). Without it, data stays in plaintext `foxinal-inventory`.
+- Settings → Security controls **auto-lock** and **lock when hidden** (need a master password).
+- **Double-click** a group to open it, or a host to connect.
+- Drag from the **grip** to nest under another group or drop on breadcrumbs.
+- Regenerate icons: `pnpm tauri icon app-icon.png`
 
 ## Roadmap
 
+- Windows builds
 - Server sync
-- OS keychain integration
-- Host key verification UX
+- OS keychain
+- Richer host-key UX (fingerprint prompt)
 - Jump hosts
 - Recovery key for forgotten master password
+- Optional in-app updater (`tauri-plugin-updater`)
 
 ## License
 
