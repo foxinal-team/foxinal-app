@@ -36,7 +36,15 @@ import { Atmosphere } from "@/components/Atmosphere";
 import { BrandMark } from "@/components/BrandMark";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { UpdateAvailableDialog } from "@/components/UpdateAvailableDialog";
 import { toast } from "@/lib/toast";
+import {
+  checkForUpdates,
+  openReleasePage,
+  skipVersion,
+  type LatestRelease,
+} from "@/lib/updates";
+import { APP_VERSION } from "@/lib/version";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { TerminalView } from "@/components/TerminalView";
@@ -166,6 +174,7 @@ export function Dashboard({
   const [searchQuery, setSearchQuery] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [sftpDialogOpen, setSftpDialogOpen] = useState(false);
+  const [updatePrompt, setUpdatePrompt] = useState<LatestRelease | null>(null);
   const [sftpMounted, setSftpMounted] = useState(false);
   const [terminalPrefs, setTerminalPrefs] = useState<TerminalPrefs>(() =>
     loadTerminalPrefs(),
@@ -222,6 +231,7 @@ export function Dashboard({
     renameGroupTarget !== null ||
     editHostTarget !== null ||
     deleteTarget !== null ||
+    updatePrompt !== null ||
     sftpDialogOpen;
 
   useLockGuards({
@@ -234,6 +244,20 @@ export function Dashboard({
   useEffect(() => {
     if (view === "sftp") setSftpMounted(true);
   }, [view]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const result = await checkForUpdates();
+      if (cancelled) return;
+      if (result.status === "available" && !result.skipped) {
+        setUpdatePrompt(result.latest);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const { groups, hosts } = useMemo(() => {
     const dir = sortDir === "asc" ? 1 : -1;
@@ -1288,6 +1312,23 @@ export function Dashboard({
         onVaultKeyChange={onVaultKeyChange}
         onSecurityPrefsChange={onSecurityPrefsChange}
         onClose={() => setSettingsOpen(false)}
+      />
+
+      <UpdateAvailableDialog
+        open={updatePrompt !== null}
+        currentVersion={APP_VERSION}
+        latest={updatePrompt}
+        onLater={() => setUpdatePrompt(null)}
+        onSkip={() => {
+          if (updatePrompt) skipVersion(updatePrompt.version);
+          setUpdatePrompt(null);
+        }}
+        onOpenRelease={() => {
+          if (!updatePrompt) return;
+          void openReleasePage(updatePrompt.htmlUrl).catch(() => {
+            toast.error("Could not open the release page.");
+          });
+        }}
       />
     </main>
   );

@@ -1,7 +1,9 @@
 import {
   IconCheck,
+  IconDownload,
   IconInfoCircle,
   IconLock,
+  IconRefresh,
   IconSettings,
   IconShieldLock,
   IconTerminal2,
@@ -37,6 +39,12 @@ import {
 } from "@/components/ui/tabs";
 import type { InventoryItem } from "@/inventory/types";
 import { toast } from "@/lib/toast";
+import {
+  checkForUpdates,
+  openReleasePage,
+  skipVersion,
+  type UpdateCheckResult,
+} from "@/lib/updates";
 import { cn } from "@/lib/utils";
 import { APP_NAME, APP_VERSION } from "@/lib/version";
 import {
@@ -129,6 +137,10 @@ export function SettingsDialog({
   const [confirmPassword, setConfirmPassword] = useState("");
   const [removePassword, setRemovePassword] = useState("");
   const [securityBusy, setSecurityBusy] = useState(false);
+  const [updateBusy, setUpdateBusy] = useState(false);
+  const [updateResult, setUpdateResult] = useState<UpdateCheckResult | null>(
+    null,
+  );
   const [bodyHeight, setBodyHeight] = useState<number | undefined>(undefined);
   const bodyInnerRef = useRef<HTMLDivElement | null>(null);
 
@@ -141,6 +153,8 @@ export function SettingsDialog({
     setNextPassword("");
     setConfirmPassword("");
     setRemovePassword("");
+    setUpdateResult(null);
+    setUpdateBusy(false);
     setBodyHeight(undefined);
   }, [open, terminalPrefs]);
 
@@ -157,7 +171,7 @@ export function SettingsDialog({
     const observer = new ResizeObserver(syncHeight);
     observer.observe(node);
     return () => observer.disconnect();
-  }, [open, section, securityOn]);
+  }, [open, section, securityOn, updateResult, updateBusy]);
 
   const dirty =
     draft.fontId !== terminalPrefs.fontId ||
@@ -269,11 +283,30 @@ export function SettingsDialog({
     }
   }
 
+  async function handleCheckForUpdates() {
+    if (updateBusy) return;
+    setUpdateBusy(true);
+    setUpdateResult(null);
+    try {
+      const result = await checkForUpdates({ force: true });
+      setUpdateResult(result);
+      if (result.status === "up-to-date") {
+        toast.success("You’re up to date.", `Foxinal v${APP_VERSION}`);
+      } else if (result.status === "available") {
+        toast.info(`Update available: v${result.latest.version}`);
+      } else if (result.status === "error") {
+        toast.error(result.error);
+      }
+    } finally {
+      setUpdateBusy(false);
+    }
+  }
+
   return (
     <Dialog
       open={open}
       onOpenChange={(v) => {
-        if (!v && !securityBusy) onClose();
+        if (!v && !securityBusy && !updateBusy) onClose();
       }}
     >
       <DialogContent
@@ -743,6 +776,77 @@ export function SettingsDialog({
                 <p className="m-0 text-[0.78rem] leading-[1.45] text-ink-muted">
                   Manage local terminals and SSH hosts in one place.
                 </p>
+
+                <div className="mt-5 flex w-full max-w-72 flex-col items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-10 w-full"
+                    disabled={updateBusy}
+                    onClick={() => void handleCheckForUpdates()}
+                  >
+                    <IconRefresh size={16} stroke={1.75} aria-hidden />
+                    <span>
+                      {updateBusy ? "Checking…" : "Check for updates"}
+                    </span>
+                  </Button>
+
+                  {updateResult?.status === "up-to-date" ? (
+                    <p className="m-0 text-[0.78rem] font-semibold text-ink-muted">
+                      You’re up to date.
+                    </p>
+                  ) : null}
+
+                  {updateResult?.status === "available" ? (
+                    <div className="flex w-full flex-col items-center gap-2">
+                      <p className="m-0 text-[0.78rem] font-semibold text-ink">
+                        v{updateResult.latest.version} is available
+                        {updateResult.skipped ? " (skipped)" : ""}.
+                      </p>
+                      <div className="flex flex-wrap justify-center gap-1.5">
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() => {
+                            void openReleasePage(
+                              updateResult.latest.htmlUrl,
+                            ).catch(() => {
+                              toast.error("Could not open the release page.");
+                            });
+                          }}
+                        >
+                          <IconDownload size={16} stroke={1.75} aria-hidden />
+                          <span>Open release</span>
+                        </Button>
+                        {!updateResult.skipped ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              skipVersion(updateResult.latest.version);
+                              setUpdateResult({
+                                ...updateResult,
+                                skipped: true,
+                              });
+                              toast.message(
+                                `Skipped v${updateResult.latest.version}`,
+                              );
+                            }}
+                          >
+                            Skip this version
+                          </Button>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {updateResult?.status === "error" ? (
+                    <p className="m-0 text-[0.78rem] font-semibold text-destructive">
+                      {updateResult.error}
+                    </p>
+                  ) : null}
+                </div>
               </TabsContent>
             </div>
           </div>

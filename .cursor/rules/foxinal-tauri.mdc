@@ -46,14 +46,16 @@ src/
   App.tsx                 # unlock gate
   components/             # BrandMark, Atmosphere, ThemeToggle, Dashboard, TerminalView, ConnectionOverlay, DialogIcon, ui/*
   hooks/                  # useTheme, useLockGuards
-  lib/                    # utils, sessions, version, toast
+  lib/                    # utils, sessions, version, toast, updates
   styles/xterm-host.css   # FitAddon-safe xterm host (imported by TerminalView)
   inventory/ settings/ sftp/ security/
 ```
 
-- `src/components/Dashboard.tsx` — navbar + inventory + session tab strip (PTYs stay mounted when switching)
+- `src/components/Dashboard.tsx` — navbar + inventory + session tab strip (PTYs stay mounted when switching); startup update check
 - `src/lib/sessions.ts` — tab model; `src/lib/version.ts` — app name/version from `package.json`
-- `src/settings/` — SettingsDialog + terminalPrefs
+- `src/lib/updates.ts` — notify-only update check (GitHub `/releases/latest`, semver, daily throttle, skip version in localStorage); no updater plugin
+- `src/components/UpdateAvailableDialog.tsx` — startup prompt when a newer release exists
+- `src/settings/` — SettingsDialog + terminalPrefs; About has **Check for updates**
 - `src/security/` — masterPassword, vault, session, prefs (lock guards hook lives in `hooks/`)
 - `src/sftp/` — dual-pane SFTP; kept mounted when switching nav
 - `src-tauri/src/sftp.rs` — transfer connections separate from browse; cancel/progress per transferId
@@ -106,6 +108,7 @@ pnpm dev            # frontend only — terminal/SSH fail without Tauri
 - Prefer org/repo Workflow permissions → **Read and write**; if greyed out, secret `RELEASE_TOKEN` (PAT with contents write)
 - Backend: `ssh2` with `vendored-openssl` (macOS x86_64 cross-compile from arm64 runners)
 - No Apple signing/notarization yet (users: `xattr -cr /Applications/foxinal.app`)
+- In-app update check (notify only): GitHub `foxinal-team/foxinal-app` latest release; opens release page via opener — **not** `tauri-plugin-updater`
 
 ## Conventions
 
