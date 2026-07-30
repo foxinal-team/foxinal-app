@@ -1109,7 +1109,7 @@ dependencies = [
 
 [[package]]
 name = "foxinal"
-version = "1.0.9"
+version = "1.0.10"
 dependencies = [
  "arboard",
  "serde",
