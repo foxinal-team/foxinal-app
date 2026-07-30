@@ -698,6 +698,7 @@ export function Dashboard({
                 >
                   <TerminalView
                     session={tab.session}
+                    sessionId={tab.id}
                     active={paneActive}
                     onCloseSession={() => closeTab(tab.id)}
                     terminalPrefs={terminalPrefs}

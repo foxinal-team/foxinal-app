@@ -252,19 +252,27 @@ fn uuid_like() -> String {
 }
 
 #[tauri::command]
-fn clipboard_write_text(text: String) -> Result<(), String> {
-    arboard::Clipboard::new()
-        .map_err(|e| format!("Clipboard unavailable: {e}"))?
-        .set_text(text)
-        .map_err(|e| format!("Could not copy: {e}"))
+async fn clipboard_write_text(text: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        arboard::Clipboard::new()
+            .map_err(|e| format!("Clipboard unavailable: {e}"))?
+            .set_text(text)
+            .map_err(|e| format!("Could not copy: {e}"))
+    })
+    .await
+    .map_err(|e| format!("Clipboard write task failed: {e}"))?
 }
 
 #[tauri::command]
-fn clipboard_read_text() -> Result<String, String> {
-    arboard::Clipboard::new()
-        .map_err(|e| format!("Clipboard unavailable: {e}"))?
-        .get_text()
-        .map_err(|e| format!("Could not paste: {e}"))
+async fn clipboard_read_text() -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        arboard::Clipboard::new()
+            .map_err(|e| format!("Clipboard unavailable: {e}"))?
+            .get_text()
+            .map_err(|e| format!("Could not paste: {e}"))
+    })
+    .await
+    .map_err(|e| format!("Clipboard read task failed: {e}"))?
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

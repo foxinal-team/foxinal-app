@@ -34,6 +34,8 @@ type ConnPhase = "connecting" | "ready" | "error";
 
 type TerminalViewProps = {
   session: TerminalSession;
+  /** Stable tab id — keeps each PTY instance independent across remounts. */
+  sessionId: string;
   active?: boolean;
   onCloseSession?: () => void;
   terminalPrefs: TerminalPrefs;
@@ -77,18 +79,22 @@ function formatConnectionLog(raw: string): string {
 
 async function writeClipboardText(text: string): Promise<void> {
   try {
-    await invoke("clipboard_write_text", { text });
-  } catch {
     await navigator.clipboard.writeText(text);
+    return;
+  } catch {
+    // Fall through to native clipboard (needed in some Tauri webviews).
   }
+  await invoke("clipboard_write_text", { text });
 }
 
 async function readClipboardText(): Promise<string> {
   try {
-    return await invoke<string>("clipboard_read_text");
+    const text = await navigator.clipboard.readText();
+    if (text) return text;
   } catch {
-    return navigator.clipboard.readText();
+    // Fall through.
   }
+  return invoke<string>("clipboard_read_text");
 }
 
 function isCopyChord(e: KeyboardEvent): boolean {
@@ -150,6 +156,7 @@ function looksLikeShellReady(buffer: string): boolean {
 
 export function TerminalView({
   session,
+  sessionId,
   active = true,
   onCloseSession,
   terminalPrefs,
@@ -172,8 +179,8 @@ export function TerminalView({
   /** True once an SSH session reached ready — exit then means reconnect, not first-connect retry. */
   const [canReconnect, setCanReconnect] = useState(false);
 
-  const sessionKey =
-    session.kind === "local" ? "local" : `ssh:${session.host.id}`;
+  // One PTY lifecycle per tab — never share keys across local shells or same-host SSH tabs.
+  const sessionKey = sessionId;
 
   useEffect(() => {
     const hostEl = hostRef.current;
@@ -306,19 +313,20 @@ export function TerminalView({
           pty.write(text.replace(/\r\n/g, "\r").replace(/\n/g, "\r"));
         };
 
-        // Key chord paste sets this so the following browser `paste` event
-        // doesn't insert a second copy (common with Ctrl+Shift+V / ⌘V).
-        let suppressNextBrowserPaste = false;
+        // Prefer browser `paste` (clipboardData). Only fall back to native
+        // clipboard if no paste event arrives — arboard can hang the UI on Linux
+        // when called on every Ctrl+Shift+V.
+        let pasteFallbackTimer: number | undefined;
+        let expectPasteEvent = false;
 
         const onBrowserPaste = (e: Event) => {
           const ev = e as ClipboardEvent;
           ev.preventDefault();
           ev.stopPropagation();
-          if (suppressNextBrowserPaste) {
-            suppressNextBrowserPaste = false;
-            return;
-          }
           const text = ev.clipboardData?.getData("text/plain") ?? "";
+          if (!text) return;
+          expectPasteEvent = false;
+          window.clearTimeout(pasteFallbackTimer);
           writePaste(text);
         };
 
@@ -327,8 +335,11 @@ export function TerminalView({
           hostEl;
         pasteTarget.addEventListener("paste", onBrowserPaste, true);
         disposables.push({
-          dispose: () =>
-            pasteTarget.removeEventListener("paste", onBrowserPaste, true),
+          dispose: () => {
+            expectPasteEvent = false;
+            window.clearTimeout(pasteFallbackTimer);
+            pasteTarget.removeEventListener("paste", onBrowserPaste, true);
+          },
         });
 
         // Linux/Windows: Ctrl+Shift+C/V · macOS: ⌘C/⌘V · also Ctrl/Shift+Insert.
@@ -344,14 +355,17 @@ export function TerminalView({
           }
 
           if (isPasteChord(ev)) {
-            suppressNextBrowserPaste = true;
-            void readClipboardText()
-              .then((text) => {
-                if (!disposed) writePaste(text);
-              })
-              .catch(() => {
-                suppressNextBrowserPaste = false;
-              });
+            expectPasteEvent = true;
+            window.clearTimeout(pasteFallbackTimer);
+            pasteFallbackTimer = window.setTimeout(() => {
+              if (!expectPasteEvent || disposed) return;
+              expectPasteEvent = false;
+              void readClipboardText()
+                .then((text) => {
+                  if (!disposed) writePaste(text);
+                })
+                .catch(() => undefined);
+            }, 50);
             return false;
           }
 
@@ -509,7 +523,7 @@ export function TerminalView({
         );
       }
     };
-  }, [sessionKey, session, attempt]);
+  }, [sessionKey, attempt]);
 
   useEffect(() => {
     const term = termRef.current;

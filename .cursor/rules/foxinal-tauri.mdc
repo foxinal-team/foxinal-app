@@ -72,7 +72,8 @@ src/
 - **Drag-and-drop**: pointer-based (not HTML5 — unreliable in Tauri WebKit); grip `onPointerDown` → window `pointermove`/`pointerup` + `elementsFromPoint` on `[data-fox-drop]`; drop opens destination; blocked for self/descendant / name clash / already there
 - **SFTP** — dual panes; ⌘/Ctrl multi-select + grip-drag copy; rename / new folder / delete; concurrent transfers with separate progress/cancel; browse works while transferring; optimistic delete & soft refresh
 - Password auth auto-types when SSH password prompt appears; temp keys cleaned via `cleanup_ssh_temp`
-- Terminal clipboard: Ctrl+Shift+C/V (Linux/Windows), ⌘C/⌘V (macOS), Ctrl/Shift+Insert — via `clipboard_write_text` / `clipboard_read_text` (`arboard`)
+- Terminal clipboard: Ctrl+Shift+C/V (Linux/Windows), ⌘C/⌘V (macOS), Ctrl/Shift+Insert — prefer browser paste event; native `arboard` via `spawn_blocking` as fallback (`wayland-data-control` on Linux)
+- PTY: vendored `src-tauri/crates/tauri-plugin-pty` — blocking read/wait moved to `spawn_blocking` (upstream freezes multi-session apps on Linux)
 - SSH launch (`prepare_ssh_launch`): Foxinal `ssh_known_hosts` in app data (`StrictHostKeyChecking=accept-new`, ignores `~/.ssh` / global known_hosts); keepalive `ServerAliveInterval=30` / `CountMax=3` / `TCPKeepAlive=yes`
 - Host key mismatch → overlay **Trust host & retry** (`clear_ssh_host_key` then reconnect)
 - Connection fail / disconnect overlay → **Show logs** (captured SSH/PTY output, copyable)
