@@ -27,7 +27,7 @@ SSH connection manager (in progress). Local-first dashboard (nested groups + SSH
 
 ## UI components
 
-- shadcn primitives in `src/components/ui/*` (`Button`, `Dialog`, `Input`, `Label`, `Tabs`, `Switch`, `Select`, `Slider`, `Separator`, `Textarea`, `Progress`, `Spinner`, `Checkbox`, `ScrollArea`, `ContextMenu`)
+- shadcn primitives in `src/components/ui/*` (`Button`, `Dialog`, `Input`, `Label`, `Tabs`, `Switch`, `Select`, `Slider`, `Separator`, `Textarea`, `Progress`, `Spinner`, `Checkbox`, `ScrollArea`, `ContextMenu`, `Popover`)
 - Dialog sizes: `default` | `wide` | `settings`; glass styles; `showCloseButton` defaults false
 - Loading: `Spinner`, `Progress` (`indeterminate`), shared `ConnectionOverlay` (SSH/SFTP connect + error)
 - **Toasts:** Sonner (`src/components/ui/sonner.tsx` + `<Toaster />` in `main.tsx`); helpers in `src/lib/toast.ts` (`success` / `error` / `info` / `warning`). Theme follows `data-theme` (no next-themes). Glass `.fox-toast` styles in `src/index.css` (accent rail + variant icon chip). Use for transient feedback; keep actionable overlays (Retry/Dismiss) on-page

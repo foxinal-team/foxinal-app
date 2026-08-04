@@ -1,5 +1,6 @@
 import {
   IconCheck,
+  IconChevronDown,
   IconDownload,
   IconInfoCircle,
   IconLock,
@@ -22,6 +23,11 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { SecretInput } from "@/components/ui/secret-input";
 import {
   Select,
@@ -75,9 +81,48 @@ import {
   themeAccentColors,
   type TerminalPrefs,
   type TerminalThemeId,
+  type XtermTheme,
 } from "./terminalPrefs";
 
 type SettingsSection = "terminal" | "account" | "security" | "about";
+
+function ThemeSwatchPreview({
+  swatch,
+  className,
+}: {
+  swatch: XtermTheme;
+  className?: string;
+}) {
+  const accents = themeAccentColors(swatch);
+  return (
+    <span
+      className={cn(
+        "relative block overflow-hidden rounded-[calc(var(--radius-sm)-0.15rem)] border border-black/10 px-2.5 py-2 font-mono text-[0.68rem] leading-none dark:border-white/10",
+        className,
+      )}
+      style={{
+        background: swatch.background,
+        color: swatch.foreground,
+      }}
+      aria-hidden
+    >
+      <span className="flex items-center gap-1 opacity-90">
+        <span style={{ color: swatch.green }}>❯</span>
+        <span style={{ color: swatch.cyan }}>fox</span>
+        <span style={{ color: swatch.yellow }}>~</span>
+      </span>
+      <span className="mt-2 flex gap-1">
+        {accents.map((color) => (
+          <span
+            key={color}
+            className="size-2 rounded-full"
+            style={{ background: color }}
+          />
+        ))}
+      </span>
+    </span>
+  );
+}
 
 /** Keep Foxinal segmented control inside the rail (reset shadcn Tabs chrome). */
 const SETTINGS_TAB_TRIGGER_CLASS = cn(
@@ -139,6 +184,7 @@ export function SettingsDialog({
     null,
   );
   const [bodyHeight, setBodyHeight] = useState<number | undefined>(undefined);
+  const [themeMenuOpen, setThemeMenuOpen] = useState(false);
   const bodyInnerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -153,6 +199,7 @@ export function SettingsDialog({
     setUpdateResult(null);
     setUpdateBusy(false);
     setBodyHeight(undefined);
+    setThemeMenuOpen(false);
   }, [open, terminalPrefs]);
 
   useLayoutEffect(() => {
@@ -176,7 +223,16 @@ export function SettingsDialog({
     draft.theme !== terminalPrefs.theme ||
     draft.scrollback !== terminalPrefs.scrollback;
 
+  const atDefaults =
+    draft.fontId === DEFAULT_TERMINAL_PREFS.fontId &&
+    draft.fontSize === DEFAULT_TERMINAL_PREFS.fontSize &&
+    draft.theme === DEFAULT_TERMINAL_PREFS.theme &&
+    draft.scrollback === DEFAULT_TERMINAL_PREFS.scrollback;
+
   const previewTheme = resolveTerminalTheme(draft.theme, appTheme);
+  const previewThemeLabel =
+    TERMINAL_THEMES.find((theme) => theme.id === draft.theme)?.label ??
+    draft.theme;
 
   function updateDraft<K extends keyof TerminalPrefs>(
     key: K,
@@ -187,11 +243,25 @@ export function SettingsDialog({
 
   function applyTerminal() {
     onChangeTerminalPrefs(draft);
+    toast.success("Terminal preferences saved");
   }
 
-  function resetTerminal() {
+  /** Draft-only — Apply still required to persist. */
+  function resetDraftToDefaults() {
     setDraft({ ...DEFAULT_TERMINAL_PREFS });
-    onChangeTerminalPrefs({ ...DEFAULT_TERMINAL_PREFS });
+  }
+
+  function discardTerminalDraft() {
+    setDraft({ ...terminalPrefs });
+  }
+
+  function requestClose() {
+    if (securityBusy || updateBusy) return;
+    if (dirty) {
+      toast.warning("Unsaved changes", "Apply or Discard before closing.");
+      return;
+    }
+    onClose();
   }
 
   function clearSecurityForm() {
@@ -304,7 +374,7 @@ export function SettingsDialog({
     <Dialog
       open={open}
       onOpenChange={(v) => {
-        if (!v && !securityBusy && !updateBusy) onClose();
+        if (!v) requestClose();
       }}
     >
       <DialogContent
@@ -331,7 +401,7 @@ export function SettingsDialog({
             size="icon-sm"
             className="size-8 shrink-0 rounded-[var(--radius-xs)] text-ink-muted hover:bg-[color-mix(in_srgb,var(--ink)_6%,transparent)] hover:text-ink"
             aria-label="Close settings"
-            onClick={onClose}
+            onClick={requestClose}
           >
             <IconX size={18} stroke={1.75} aria-hidden />
           </Button>
@@ -365,125 +435,199 @@ export function SettingsDialog({
           </TabsList>
 
           {section === "terminal" ? (
-            <div className="mb-[0.85rem] shrink-0 space-y-1.5 border-b border-line pb-[0.85rem]">
-              <div className="flex items-baseline justify-between gap-2">
-                <Label className="text-[0.78rem] font-semibold">
-                  Live preview
-                </Label>
-                <span className="text-[0.7rem] text-ink-muted">
-                  Font, size & theme
-                </span>
-              </div>
-              <div
-                className="m-0 overflow-hidden rounded-[var(--radius-sm)] border border-line px-[0.85rem] py-3 font-mono leading-[1.45] transition-[background-color,color,border-color] duration-150 ease-[var(--ease)]"
-                style={{
-                  fontFamily: fontFamilyForId(draft.fontId),
-                  fontSize: draft.fontSize,
-                  background: previewTheme.background,
-                  color: previewTheme.foreground,
-                  borderColor: previewTheme.selectionBackground,
-                }}
-                aria-label="Terminal appearance preview"
-              >
-                <p className="m-0 truncate">
-                  <span style={{ color: previewTheme.green }}>user</span>
-                  <span style={{ color: previewTheme.foreground }}>@</span>
-                  <span style={{ color: previewTheme.cyan }}>foxinal</span>
-                  <span style={{ color: previewTheme.foreground }}>:</span>
-                  <span style={{ color: previewTheme.blue }}>~</span>
-                  <span style={{ color: previewTheme.foreground }}>$ </span>
-                  <span style={{ color: previewTheme.foreground }}>
-                    echo{" "}
-                  </span>
-                  <span style={{ color: previewTheme.yellow }}>
-                    &quot;preview&quot;
-                  </span>
-                </p>
-                <p className="mt-1.5 mb-0 flex flex-wrap gap-1.5">
-                  {themeAccentColors(previewTheme).map((color) => (
-                    <span
-                      key={color}
-                      className="inline-block size-2.5 rounded-full"
-                      style={{ background: color }}
-                      aria-hidden
-                    />
-                  ))}
-                </p>
-              </div>
-            </div>
-          ) : null}
-
-          <div
-            className={cn(
-              "min-h-0 flex-1 overflow-x-hidden overflow-y-auto pr-[0.15rem] [scrollbar-width:thin]",
-              bodyHeight !== undefined &&
-                "motion-safe:transition-[height] motion-safe:duration-300 motion-safe:ease-[var(--ease)]",
-            )}
-            style={
-              bodyHeight !== undefined
-                ? { height: `min(${bodyHeight}px, 100%)` }
-                : undefined
-            }
-          >
-            <div ref={bodyInnerRef} className="block">
-              <TabsContent value="terminal" className={SETTINGS_SECTION_CLASS}>
-                <div className="flex flex-col gap-1.5">
-                  <Label
-                    htmlFor="term-font"
-                    className="text-[0.78rem] font-semibold"
-                  >
-                    Font
-                  </Label>
-                  <Select
-                    value={draft.fontId}
-                    onValueChange={(value) => updateDraft("fontId", value)}
-                  >
-                    <SelectTrigger
-                      id="term-font"
-                      className="!h-10 w-full min-w-0 rounded-[var(--radius-sm)] border-line bg-[var(--field-bg)]"
+            <div className="flex min-h-0 flex-1 flex-col gap-[0.85rem]">
+              <div className="shrink-0 space-y-[0.85rem]">
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <Label className="text-[0.78rem] font-semibold">
+                        Live preview
+                        <span className="font-medium text-ink-muted">
+                          {" "}
+                          · {previewThemeLabel}
+                        </span>
+                      </Label>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 shrink-0 px-2 text-[0.72rem] text-ink-muted hover:text-ink"
+                      disabled={atDefaults}
+                      onClick={resetDraftToDefaults}
                     >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {TERMINAL_FONTS.map((font) => (
-                        <SelectItem key={font.id} value={font.id}>
-                          {font.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                      <IconRefresh size={14} stroke={1.75} aria-hidden />
+                      Defaults
+                    </Button>
+                  </div>
+                  <div
+                    className="m-0 overflow-hidden rounded-[var(--radius-sm)] border border-line px-[0.85rem] py-2.5 font-mono leading-[1.45] transition-[background-color,color,border-color] duration-150 ease-[var(--ease)]"
+                    style={{
+                      fontFamily: fontFamilyForId(draft.fontId),
+                      fontSize: draft.fontSize,
+                      background: previewTheme.background,
+                      color: previewTheme.foreground,
+                      borderColor: previewTheme.selectionBackground,
+                    }}
+                    aria-label={`Terminal appearance preview · ${previewThemeLabel}`}
+                  >
+                    <p className="m-0 truncate">
+                      <span style={{ color: previewTheme.green }}>user</span>
+                      <span style={{ color: previewTheme.foreground }}>
+                        @
+                      </span>
+                      <span style={{ color: previewTheme.cyan }}>foxinal</span>
+                      <span style={{ color: previewTheme.foreground }}>
+                        :
+                      </span>
+                      <span style={{ color: previewTheme.blue }}>~</span>
+                      <span style={{ color: previewTheme.foreground }}>
+                        ${" "}
+                      </span>
+                      <span style={{ color: previewTheme.foreground }}>
+                        ls{" "}
+                      </span>
+                      <span style={{ color: previewTheme.yellow }}>src</span>
+                    </p>
+                    <p className="m-0 truncate">
+                      <span style={{ color: previewTheme.blue }}>App.tsx</span>
+                      <span style={{ color: previewTheme.foreground }}>
+                        {"  "}
+                      </span>
+                      <span style={{ color: previewTheme.blue }}>
+                        settings/
+                      </span>
+                      <span style={{ color: previewTheme.foreground }}>
+                        {"  "}
+                      </span>
+                      <span style={{ color: previewTheme.magenta }}>
+                        main.tsx
+                      </span>
+                    </p>
+                    <p className="m-0 truncate">
+                      <span style={{ color: previewTheme.green }}>user</span>
+                      <span style={{ color: previewTheme.foreground }}>
+                        @
+                      </span>
+                      <span style={{ color: previewTheme.cyan }}>foxinal</span>
+                      <span style={{ color: previewTheme.foreground }}>
+                        :
+                      </span>
+                      <span style={{ color: previewTheme.blue }}>~</span>
+                      <span style={{ color: previewTheme.foreground }}>
+                        ${" "}
+                      </span>
+                      <span style={{ color: previewTheme.red }}>
+                        error:{" "}
+                      </span>
+                      <span style={{ color: previewTheme.foreground }}>
+                        could not compile
+                      </span>
+                      <span
+                        className="ml-0.5 inline-block w-[0.55ch] animate-pulse"
+                        style={{ background: previewTheme.cursor }}
+                        aria-hidden
+                      >
+                        &nbsp;
+                      </span>
+                    </p>
+                  </div>
                 </div>
 
-                <div className="flex flex-col gap-2.5">
-                  <Label
-                    htmlFor="term-size"
-                    className="text-[0.78rem] font-semibold"
-                  >
-                    Size{" "}
-                    <em className="ml-[0.35rem] not-italic font-bold text-fox">
-                      {draft.fontSize}px
-                    </em>
-                  </Label>
-                  <Slider
-                    id="term-size"
-                    min={TERMINAL_FONT_SIZE_MIN}
-                    max={TERMINAL_FONT_SIZE_MAX}
-                    step={1}
-                    value={[draft.fontSize]}
-                    onValueChange={(value) =>
-                      updateDraft("fontSize", value[0] ?? draft.fontSize)
-                    }
-                    className="py-1"
-                  />
+                <div className="grid gap-3 sm:grid-cols-2 sm:items-end">
+                  <div className="flex flex-col gap-1.5">
+                    <Label
+                      htmlFor="term-font"
+                      className="text-[0.78rem] font-semibold"
+                    >
+                      Font
+                    </Label>
+                    <Select
+                      value={draft.fontId}
+                      onValueChange={(value) => updateDraft("fontId", value)}
+                    >
+                      <SelectTrigger
+                        id="term-font"
+                        className="!h-10 w-full min-w-0 rounded-[var(--radius-sm)] border-line bg-[var(--field-bg)]"
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {TERMINAL_FONTS.map((font) => (
+                          <SelectItem key={font.id} value={font.id}>
+                            {font.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="flex flex-col gap-2.5">
+                    <Label
+                      htmlFor="term-size"
+                      className="text-[0.78rem] font-semibold"
+                    >
+                      Size{" "}
+                      <em className="ml-[0.35rem] not-italic font-bold text-fox">
+                        {draft.fontSize}px
+                      </em>
+                    </Label>
+                    <Slider
+                      id="term-size"
+                      min={TERMINAL_FONT_SIZE_MIN}
+                      max={TERMINAL_FONT_SIZE_MAX}
+                      step={1}
+                      value={[draft.fontSize]}
+                      onValueChange={(value) =>
+                        updateDraft("fontSize", value[0] ?? draft.fontSize)
+                      }
+                      className="py-1"
+                    />
+                  </div>
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <Label
-                    htmlFor="term-scrollback"
-                    className="text-[0.78rem] font-semibold"
-                  >
-                    Scrollback lines
-                  </Label>
+                  <div className="flex items-center gap-1">
+                    <Label
+                      htmlFor="term-scrollback"
+                      className="text-[0.78rem] font-semibold"
+                    >
+                      Scrollback lines
+                    </Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          className="size-6 text-ink-muted hover:text-ink"
+                          aria-label="About scrollback lines"
+                        >
+                          <IconInfoCircle size={15} stroke={1.75} aria-hidden />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent
+                        align="start"
+                        className="w-[min(18rem,calc(100vw-2rem))] space-y-1.5 p-3"
+                      >
+                        <p className="m-0 text-[0.8rem] font-semibold text-ink">
+                          Scrollback buffer
+                        </p>
+                        <p className="m-0 text-[0.75rem] leading-snug text-ink-muted">
+                          How many lines to keep above the visible terminal so
+                          you can scroll up through history. Higher values use
+                          more memory.
+                        </p>
+                        <p className="m-0 text-[0.75rem] leading-snug text-ink-muted">
+                          Set to{" "}
+                          <span className="font-semibold text-ink">0</span> for
+                          the maximum buffer (
+                          {TERMINAL_SCROLLBACK_INPUT_MAX.toLocaleString()}{" "}
+                          lines).
+                        </p>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
                   <Input
                     id="term-scrollback"
                     type="number"
@@ -505,82 +649,141 @@ export function SettingsDialog({
                     }}
                     className="h-10"
                   />
-                  <p className="m-0 text-[0.75rem] leading-snug text-ink-muted">
-                    How many lines to keep above the viewport.{" "}
-                    <span className="font-semibold text-ink">0</span> uses the
-                    maximum buffer.
-                  </p>
                 </div>
 
-                <fieldset className="m-0 flex flex-col gap-2.5 border-0 p-0">
-                  <legend className="mb-0 inline-flex items-center gap-[0.3rem] text-[0.78rem] font-semibold text-ink">
-                    Theme
-                  </legend>
-                  <div
-                    className="grid grid-cols-1 gap-2 sm:grid-cols-2"
-                    role="group"
-                    aria-label="Terminal theme"
+                <div className="flex flex-col gap-1.5">
+                  <Label
+                    id="term-theme-label"
+                    className="text-[0.78rem] font-semibold"
                   >
-                    {TERMINAL_THEMES.map((theme) => {
-                      const swatch = resolveTerminalTheme(theme.id, appTheme);
-                      const accents = themeAccentColors(swatch);
-                      const selected = draft.theme === theme.id;
-                      return (
-                        <Button
-                          key={theme.id}
-                          type="button"
-                          variant="outline"
-                          className={cn(
-                            "h-auto flex-col items-stretch gap-2 rounded-[var(--radius-sm)] border-line bg-[var(--field-bg)] p-2 text-left shadow-none",
-                            "hover:bg-[var(--field-bg-hover)]",
-                            selected &&
-                              "border-[color-mix(in_srgb,var(--fox)_50%,var(--line))] bg-[color-mix(in_srgb,var(--fox)_8%,var(--field-bg))] ring-[3px] ring-[var(--ring)] hover:bg-[color-mix(in_srgb,var(--fox)_8%,var(--field-bg))]",
-                          )}
-                          aria-pressed={selected}
-                          onClick={() =>
-                            updateDraft("theme", theme.id as TerminalThemeId)
-                          }
-                        >
-                          <span
-                            className="relative block overflow-hidden rounded-[calc(var(--radius-sm)-0.15rem)] border border-black/10 px-2.5 py-2 font-mono text-[0.68rem] leading-none dark:border-white/10"
-                            style={{
-                              background: swatch.background,
-                              color: swatch.foreground,
-                            }}
-                            aria-hidden
-                          >
-                            <span className="flex items-center gap-1 opacity-90">
-                              <span style={{ color: swatch.green }}>❯</span>
-                              <span style={{ color: swatch.cyan }}>fox</span>
-                              <span style={{ color: swatch.yellow }}>~</span>
-                            </span>
-                            <span className="mt-2 flex gap-1">
-                              {accents.map((color) => (
-                                <span
-                                  key={color}
-                                  className="size-2 rounded-full"
-                                  style={{ background: color }}
-                                />
-                              ))}
-                            </span>
-                          </span>
-                          <span className="flex min-w-0 flex-col gap-0.5 px-0.5">
+                    Theme
+                  </Label>
+                  <Popover open={themeMenuOpen} onOpenChange={setThemeMenuOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        id="term-theme"
+                        aria-labelledby="term-theme-label"
+                        aria-haspopup="listbox"
+                        aria-expanded={themeMenuOpen}
+                        className={cn(
+                          "h-auto w-full items-center justify-between gap-3 rounded-[var(--radius-sm)] border-line bg-[var(--field-bg)] p-2 text-left shadow-none",
+                          "hover:bg-[var(--field-bg-hover)]",
+                        )}
+                      >
+                        <span className="flex min-w-0 flex-1 items-center gap-2.5">
+                          <ThemeSwatchPreview
+                            swatch={previewTheme}
+                            className="w-[5.5rem] shrink-0"
+                          />
+                          <span className="flex min-w-0 flex-col gap-0.5 whitespace-normal">
                             <span className="truncate text-[0.8rem] font-bold text-ink">
-                              {theme.label}
+                              {previewThemeLabel}
                             </span>
                             <span className="truncate text-[0.7rem] font-medium text-ink-muted">
-                              {theme.blurb}
+                              {TERMINAL_THEMES.find(
+                                (theme) => theme.id === draft.theme,
+                              )?.blurb ?? ""}
                             </span>
                           </span>
-                        </Button>
-                      );
-                    })}
-                  </div>
-                </fieldset>
+                        </span>
+                        <IconChevronDown
+                          size={16}
+                          stroke={1.75}
+                          className={cn(
+                            "size-4 shrink-0 self-center text-ink-muted transition-transform",
+                            themeMenuOpen && "rotate-180",
+                          )}
+                          aria-hidden
+                        />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      align="start"
+                      sideOffset={6}
+                      collisionPadding={12}
+                      onWheel={(e) => e.stopPropagation()}
+                      className="pointer-events-auto flex w-[var(--radix-popover-trigger-width)] max-h-[min(22rem,var(--radix-popover-content-available-height))] flex-col overflow-hidden p-0"
+                      role="listbox"
+                      aria-labelledby="term-theme-label"
+                    >
+                      <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain p-1.5 [scrollbar-width:thin]">
+                        <div className="flex flex-col gap-1">
+                          {TERMINAL_THEMES.map((theme) => {
+                            const swatch = resolveTerminalTheme(
+                              theme.id,
+                              appTheme,
+                            );
+                            const selected = draft.theme === theme.id;
+                            return (
+                              <Button
+                                key={theme.id}
+                                type="button"
+                                variant="ghost"
+                                role="option"
+                                aria-selected={selected}
+                                className={cn(
+                                  "h-auto flex-col items-stretch gap-2 whitespace-normal rounded-[var(--radius-sm)] p-2 text-left shadow-none",
+                                  "hover:bg-[var(--field-bg-hover)]",
+                                  selected &&
+                                    "bg-[color-mix(in_srgb,var(--fox)_8%,var(--field-bg))] ring-[2px] ring-[var(--ring)]",
+                                )}
+                                onClick={() => {
+                                  updateDraft(
+                                    "theme",
+                                    theme.id as TerminalThemeId,
+                                  );
+                                  setThemeMenuOpen(false);
+                                }}
+                              >
+                                <ThemeSwatchPreview swatch={swatch} />
+                                <span className="flex min-w-0 items-start justify-between gap-2 px-0.5">
+                                  <span className="flex min-w-0 flex-col gap-0.5">
+                                    <span className="truncate text-[0.8rem] font-bold text-ink">
+                                      {theme.label}
+                                    </span>
+                                    <span className="truncate text-[0.7rem] font-medium text-ink-muted">
+                                      {theme.blurb}
+                                    </span>
+                                  </span>
+                                  {selected ? (
+                                    <IconCheck
+                                      size={16}
+                                      stroke={1.75}
+                                      className="mt-0.5 shrink-0 text-fox"
+                                      aria-hidden
+                                    />
+                                  ) : null}
+                                </span>
+                              </Button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
 
-                <div className="mt-[0.35rem] flex justify-end gap-2">
-                  <Button type="button" variant="outline" onClick={resetTerminal}>
-                    <span>Reset</span>
+              <div className="mt-auto flex shrink-0 items-center justify-between gap-3 border-t border-line pt-3">
+                <p
+                  className={cn(
+                    "m-0 min-w-0 text-[0.72rem] text-ink-muted transition-opacity",
+                    dirty ? "opacity-100" : "opacity-0",
+                  )}
+                  aria-live="polite"
+                >
+                  Unsaved changes
+                </p>
+                <div className="flex shrink-0 gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={!dirty}
+                    onClick={discardTerminalDraft}
+                  >
+                    Discard
                   </Button>
                   <Button
                     type="button"
@@ -591,8 +794,22 @@ export function SettingsDialog({
                     <span>Apply</span>
                   </Button>
                 </div>
-              </TabsContent>
-
+              </div>
+            </div>
+          ) : (
+            <div
+              className={cn(
+                "min-h-0 flex-1 overflow-x-hidden overflow-y-auto pr-[0.15rem] [scrollbar-width:thin]",
+                bodyHeight !== undefined &&
+                  "motion-safe:transition-[height] motion-safe:duration-300 motion-safe:ease-[var(--ease)]",
+              )}
+              style={
+                bodyHeight !== undefined
+                  ? { height: `min(${bodyHeight}px, 100%)` }
+                  : undefined
+              }
+            >
+              <div ref={bodyInnerRef} className="block">
               <TabsContent value="account" className={SETTINGS_SECTION_CLASS}>
                 <div className="flex items-start gap-3 rounded-[var(--radius-md)] border border-line bg-[var(--field-bg)] p-[0.85rem]">
                   <span
@@ -941,6 +1158,7 @@ export function SettingsDialog({
               </TabsContent>
             </div>
           </div>
+          )}
         </Tabs>
       </DialogContent>
     </Dialog>
