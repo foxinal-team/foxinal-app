@@ -4,6 +4,8 @@ export type TerminalPrefs = {
   fontId: string;
   fontSize: number;
   theme: TerminalThemeId;
+  /** Kept buffer lines above the viewport. `0` means maximum. */
+  scrollback: number;
 };
 
 export type TerminalFontOption = {
@@ -61,17 +63,36 @@ export const DEFAULT_TERMINAL_PREFS: TerminalPrefs = {
   fontId: "system",
   fontSize: 14,
   theme: "system",
+  scrollback: 40_000,
 };
 
 export const TERMINAL_PREFS_KEY = "foxinal-terminal-prefs";
 export const TERMINAL_FONT_SIZE_MIN = 11;
 export const TERMINAL_FONT_SIZE_MAX = 22;
+/** Applied when prefs.scrollback is `0` (unlimited in the UI). */
+export const TERMINAL_SCROLLBACK_MAX = 1_000_000;
+export const TERMINAL_SCROLLBACK_INPUT_MAX = 1_000_000;
 
 export function fontFamilyForId(fontId: string): string {
   return (
     TERMINAL_FONTS.find((font) => font.id === fontId)?.value ??
     TERMINAL_FONTS[0].value
   );
+}
+
+/** Map stored preference to the xterm `scrollback` option. */
+export function resolveScrollback(lines: number): number {
+  if (!Number.isFinite(lines) || lines <= 0) return TERMINAL_SCROLLBACK_MAX;
+  return Math.min(TERMINAL_SCROLLBACK_MAX, Math.round(lines));
+}
+
+export function normalizeScrollback(raw: unknown): number {
+  if (typeof raw !== "number" || !Number.isFinite(raw)) {
+    return DEFAULT_TERMINAL_PREFS.scrollback;
+  }
+  const rounded = Math.round(raw);
+  if (rounded <= 0) return 0;
+  return Math.min(TERMINAL_SCROLLBACK_INPUT_MAX, rounded);
 }
 
 export function loadTerminalPrefs(): TerminalPrefs {
@@ -99,7 +120,8 @@ export function loadTerminalPrefs(): TerminalPrefs {
       parsed.theme === "fox"
         ? parsed.theme
         : DEFAULT_TERMINAL_PREFS.theme;
-    return { fontId, fontSize, theme };
+    const scrollback = normalizeScrollback(parsed.scrollback);
+    return { fontId, fontSize, theme, scrollback };
   } catch {
     return { ...DEFAULT_TERMINAL_PREFS };
   }

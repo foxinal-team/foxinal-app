@@ -20,6 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SecretInput } from "@/components/ui/secret-input";
 import {
@@ -66,8 +67,10 @@ import {
   TERMINAL_FONTS,
   TERMINAL_FONT_SIZE_MAX,
   TERMINAL_FONT_SIZE_MIN,
+  TERMINAL_SCROLLBACK_INPUT_MAX,
   TERMINAL_THEMES,
   fontFamilyForId,
+  normalizeScrollback,
   resolveTerminalTheme,
   type TerminalPrefs,
   type TerminalThemeId,
@@ -176,7 +179,8 @@ export function SettingsDialog({
   const dirty =
     draft.fontId !== terminalPrefs.fontId ||
     draft.fontSize !== terminalPrefs.fontSize ||
-    draft.theme !== terminalPrefs.theme;
+    draft.theme !== terminalPrefs.theme ||
+    draft.scrollback !== terminalPrefs.scrollback;
 
   const previewTheme = resolveTerminalTheme(draft.theme, appTheme);
 
@@ -426,6 +430,41 @@ export function SettingsDialog({
                     }
                     className="py-1"
                   />
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <Label
+                    htmlFor="term-scrollback"
+                    className="text-[0.78rem] font-semibold"
+                  >
+                    Scrollback lines
+                  </Label>
+                  <Input
+                    id="term-scrollback"
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    max={TERMINAL_SCROLLBACK_INPUT_MAX}
+                    step={1000}
+                    value={draft.scrollback}
+                    onChange={(e) => {
+                      const raw = e.currentTarget.value;
+                      if (raw.trim() === "") {
+                        updateDraft("scrollback", 0);
+                        return;
+                      }
+                      updateDraft(
+                        "scrollback",
+                        normalizeScrollback(Number(raw)),
+                      );
+                    }}
+                    className="h-10"
+                  />
+                  <p className="m-0 text-[0.75rem] leading-snug text-ink-muted">
+                    How many lines to keep above the viewport.{" "}
+                    <span className="font-semibold text-ink">0</span> uses the
+                    maximum buffer.
+                  </p>
                 </div>
 
                 <fieldset className="m-0 flex flex-col gap-3 border-0 p-0">

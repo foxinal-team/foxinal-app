@@ -15,6 +15,7 @@ import type { TerminalSession } from "@/lib/sessions";
 import { cn } from "@/lib/utils";
 import {
   fontFamilyForId,
+  resolveScrollback,
   resolveTerminalTheme,
   type TerminalPrefs,
 } from "@/settings/terminalPrefs";
@@ -261,7 +262,7 @@ export function TerminalView({
           cursorBlink: true,
           fontFamily: fontFamilyForId(prefs.fontId),
           fontSize: prefs.fontSize,
-          scrollback: 5000,
+          scrollback: resolveScrollback(prefs.scrollback),
           theme: resolveTerminalTheme(prefs.theme, appThemeRef.current),
           allowProposedApi: true,
         });
@@ -533,6 +534,7 @@ export function TerminalView({
 
     term.options.fontFamily = fontFamilyForId(terminalPrefs.fontId);
     term.options.fontSize = terminalPrefs.fontSize;
+    term.options.scrollback = resolveScrollback(terminalPrefs.scrollback);
     term.options.theme = resolveTerminalTheme(terminalPrefs.theme, appTheme);
 
     requestAnimationFrame(() => {
