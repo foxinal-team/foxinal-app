@@ -50,6 +50,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { TerminalView } from "@/components/TerminalView";
 import { ConfirmDeleteDialog } from "@/inventory/ConfirmDeleteDialog";
 import { HostDialog } from "@/inventory/HostDialog";
+import { ImportDialog } from "@/inventory/ImportDialog";
 import { NameDialog } from "@/inventory/NameDialog";
 import { useInventory, type SaveResult } from "@/inventory/useInventory";
 import type { SecurityPrefs } from "@/security/prefs";
@@ -73,11 +74,14 @@ import {
 } from "@/inventory/types";
 import {
   buildExportPayload,
-  downloadExport,
   exportFilename,
   mergeImportedItems,
-  readExportFile,
+  readExportPath,
+  revealInFolderLabel,
+  shortPathForDisplay,
+  writeExportFile,
 } from "@/inventory/transfer";
+import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import {
   loadInventoryLayout,
   loadInventorySort,
@@ -163,6 +167,8 @@ export function Dashboard({
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const [createGroupOpen, setCreateGroupOpen] = useState(false);
   const [createHostOpen, setCreateHostOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importBusy, setImportBusy] = useState(false);
   const [duplicateHostInput, setDuplicateHostInput] = useState<HostInput | null>(
     null,
   );
@@ -184,13 +190,13 @@ export function Dashboard({
   const draggingIdRef = useRef<string | null>(null);
   const dragOriginRef = useRef<{ x: number; y: number } | null>(null);
   const dragArmedRef = useRef(false);
-  const importInputRef = useRef<HTMLInputElement | null>(null);
   const [layout, setLayout] = useState<InventoryLayout>(() =>
     loadInventoryLayout(),
   );
   const [sortDir, setSortDir] = useState<InventorySort>(() =>
     loadInventorySort(),
   );
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const {
     items,
     currentGroupId,
@@ -227,6 +233,7 @@ export function Dashboard({
     settingsOpen ||
     createGroupOpen ||
     createHostOpen ||
+    importOpen ||
     duplicateHostInput !== null ||
     renameGroupTarget !== null ||
     editHostTarget !== null ||
@@ -244,6 +251,35 @@ export function Dashboard({
   useEffect(() => {
     if (view === "sftp") setSftpMounted(true);
   }, [view]);
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (dialogOpen || view !== "dashboard") return;
+      const key = e.key.toLowerCase();
+      const mod = e.metaKey || e.ctrlKey;
+      if (!mod || e.altKey || e.shiftKey || key !== "f") return;
+
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable) &&
+        target !== searchInputRef.current
+      ) {
+        return;
+      }
+
+      e.preventDefault();
+      const input = searchInputRef.current;
+      if (!input) return;
+      input.focus();
+      input.select();
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [dialogOpen, view]);
 
   useEffect(() => {
     let cancelled = false;
@@ -443,7 +479,7 @@ export function Dashboard({
     window.addEventListener("pointercancel", finish);
   }
 
-  function handleExport() {
+  async function handleExport() {
     const payload = buildExportPayload(items, currentGroupId);
     if (payload.items.length === 0) {
       toast.warning(
@@ -453,38 +489,74 @@ export function Dashboard({
       );
       return;
     }
-    downloadExport(
-      payload,
-      exportFilename(currentGroupId, currentGroup?.name),
-    );
-    toast.success(
-      currentGroup
+
+    const filename = exportFilename(currentGroupId, currentGroup?.name);
+    try {
+      const path = await writeExportFile(payload, filename);
+      const message = currentGroup
         ? `Exported ${payload.items.length} item${payload.items.length === 1 ? "" : "s"} from “${currentGroup.name}”.`
-        : `Exported ${payload.items.length} item${payload.items.length === 1 ? "" : "s"}.`,
-    );
+        : `Exported ${payload.items.length} item${payload.items.length === 1 ? "" : "s"}.`;
+
+      toast.success(message, {
+        description: (
+          <button
+            type="button"
+            className="m-0 block w-full min-w-0 max-w-full cursor-pointer overflow-hidden border-0 bg-transparent p-0 text-left text-[0.8rem] font-medium text-fox break-all underline-offset-2 hover:underline"
+            title={path}
+            onClick={() => {
+              void revealItemInDir(path).catch(() => {
+                toast.error("Could not open the export location.");
+              });
+            }}
+          >
+            {shortPathForDisplay(path)}
+          </button>
+        ),
+        action: {
+          label: revealInFolderLabel(),
+          onClick: () => {
+            void revealItemInDir(path).catch(() => {
+              toast.error("Could not open the export location.");
+            });
+          },
+        },
+      });
+    } catch (err) {
+      const msg =
+        typeof err === "string" && err.trim()
+          ? err
+          : err instanceof Error
+            ? err.message
+            : "Could not export.";
+      toast.error(msg);
+    }
   }
 
-  async function handleImportFile(file: File | undefined) {
-    if (!file) return;
+  async function handleImportFile(path: string) {
+    setImportBusy(true);
+    try {
+      const parsed = await readExportPath(path);
+      if (!parsed.ok || !parsed.items) {
+        toast.error(!parsed.ok ? parsed.error : "Invalid export file.");
+        return;
+      }
 
-    const parsed = await readExportFile(file);
-    if (!parsed.ok || !parsed.items) {
-      toast.error(!parsed.ok ? parsed.error : "Invalid export file.");
-      return;
+      const merged = mergeImportedItems(items, parsed.items, currentGroupId);
+      if (!merged.ok || !merged.items) {
+        toast.error(!merged.ok ? merged.error : "Could not import items.");
+        return;
+      }
+
+      replaceItems(merged.items);
+      setImportOpen(false);
+      toast.success(
+        currentGroup
+          ? `Imported ${merged.count} item${merged.count === 1 ? "" : "s"} into “${currentGroup.name}”.`
+          : `Imported ${merged.count} item${merged.count === 1 ? "" : "s"}.`,
+      );
+    } finally {
+      setImportBusy(false);
     }
-
-    const merged = mergeImportedItems(items, parsed.items, currentGroupId);
-    if (!merged.ok || !merged.items) {
-      toast.error(!merged.ok ? merged.error : "Could not import items.");
-      return;
-    }
-
-    replaceItems(merged.items);
-    toast.success(
-      currentGroup
-        ? `Imported ${merged.count} item${merged.count === 1 ? "" : "s"} into “${currentGroup.name}”.`
-        : `Imported ${merged.count} item${merged.count === 1 ? "" : "s"}.`,
-    );
   }
 
   return (
@@ -756,7 +828,7 @@ export function Dashboard({
                       ? `Import into “${currentGroup.name}”`
                       : "Import into All"
                   }
-                  onClick={() => importInputRef.current?.click()}
+                  onClick={() => setImportOpen(true)}
                 >
                   <IconUpload {...iconProps} aria-hidden />
                   <span>Import</span>
@@ -795,19 +867,6 @@ export function Dashboard({
                   <span>New host</span>
                 </Button>
               </div>
-              <input
-                ref={importInputRef}
-                type="file"
-                accept="application/json,.json"
-                className="sr-only"
-                aria-hidden
-                tabIndex={-1}
-                onChange={(e) => {
-                  const file = e.currentTarget.files?.[0];
-                  void handleImportFile(file);
-                  e.currentTarget.value = "";
-                }}
-              />
             </div>
           </div>
 
@@ -876,15 +935,33 @@ export function Dashboard({
                 className="shrink-0 text-ink-muted"
               />
               <Input
+                ref={searchInputRef}
                 id="inventory-search"
                 type="search"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.currentTarget.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") {
+                    e.preventDefault();
+                    if (searchQuery) setSearchQuery("");
+                    else e.currentTarget.blur();
+                  }
+                }}
                 placeholder="Search groups and hosts…"
                 autoComplete="off"
                 className="h-auto min-w-0 flex-1 border-0 bg-transparent px-0 py-0 shadow-none focus-visible:border-0 focus-visible:ring-0"
               />
-              {searchQuery ? (
+              {!searchQuery ? (
+                <kbd
+                  className="pointer-events-none hidden shrink-0 rounded-[0.35rem] border border-line bg-surface px-1.5 py-0.5 font-mono text-[0.65rem] font-semibold tracking-wide text-ink-muted sm:inline"
+                  aria-hidden
+                >
+                  {typeof navigator !== "undefined" &&
+                  /mac|iphone|ipad|ipod/i.test(navigator.platform)
+                    ? "⌘F"
+                    : "Ctrl F"}
+                </kbd>
+              ) : (
                 <Button
                   type="button"
                   variant="ghost"
@@ -895,7 +972,7 @@ export function Dashboard({
                 >
                   <IconX size={14} stroke={2} aria-hidden />
                 </Button>
-              ) : null}
+              )}
             </label>
 
             <div className="inline-flex items-center gap-0.5 rounded-sm border border-line bg-surface p-0.5" role="group" aria-label="Sort and layout">
@@ -1017,8 +1094,8 @@ export function Dashboard({
               <div
                 key={group.id}
                 className={cn(
-                  "flex cursor-pointer items-stretch gap-0.5 rounded-md border border-line bg-surface shadow-(--shadow-sm) backdrop-blur-[var(--blur-sm)]",
-                  layout === "grid" && "flex-col",
+                  "flex cursor-pointer gap-0.5 rounded-md border border-line bg-surface shadow-(--shadow-sm) backdrop-blur-[var(--blur-sm)]",
+                  layout === "grid" ? "flex-col items-stretch" : "items-center",
                   isDragging && "opacity-45",
                   isDropTarget && "border-fox/50 bg-fox/8 outline outline-dashed outline-fox/40"
                 )}
@@ -1037,7 +1114,7 @@ export function Dashboard({
                   type="button"
                   variant="ghost"
                   size="icon-sm"
-                  className="size-8 cursor-grab text-ink-muted active:cursor-grabbing"
+                  className="size-8 shrink-0 cursor-grab text-ink-muted active:cursor-grabbing"
                   title="Drag to move"
                   aria-label={`Drag ${group.name} to move`}
                   tabIndex={-1}
@@ -1103,8 +1180,8 @@ export function Dashboard({
               <div
                 key={host.id}
                 className={cn(
-                  "flex cursor-pointer items-stretch gap-0.5 rounded-md border border-line bg-surface shadow-(--shadow-sm) backdrop-blur-[var(--blur-sm)]",
-                  layout === "grid" && "flex-col",
+                  "flex cursor-pointer gap-0.5 rounded-md border border-line bg-surface shadow-(--shadow-sm) backdrop-blur-[var(--blur-sm)]",
+                  layout === "grid" ? "flex-col items-stretch" : "items-center",
                   isDragging && "opacity-45"
                 )}
                 role="listitem"
@@ -1120,7 +1197,7 @@ export function Dashboard({
                   type="button"
                   variant="ghost"
                   size="icon-sm"
-                  className="size-8 cursor-grab text-ink-muted active:cursor-grabbing"
+                  className="size-8 shrink-0 cursor-grab text-ink-muted active:cursor-grabbing"
                   title="Drag to move"
                   aria-label={`Drag ${host.name} to move`}
                   tabIndex={-1}
@@ -1219,6 +1296,16 @@ export function Dashboard({
         icon={<IconFolderPlus size={22} stroke={1.75} aria-hidden />}
         submitIcon={<IconCheck size={16} stroke={1.75} aria-hidden />}
         cancelIcon={<IconX size={16} stroke={1.75} aria-hidden />}
+      />
+
+      <ImportDialog
+        open={importOpen}
+        destinationLabel={parentLabel}
+        busy={importBusy}
+        onClose={() => {
+          if (!importBusy) setImportOpen(false);
+        }}
+        onImport={handleImportFile}
       />
 
       <NameDialog

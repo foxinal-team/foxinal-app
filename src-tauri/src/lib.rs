@@ -9,9 +9,9 @@ use tauri::{AppHandle, Manager};
 mod sftp;
 
 use sftp::{
-    fs_home_dir, fs_list_dir, fs_mkdir, fs_parent_dir, fs_remove, fs_rename, sftp_connect, sftp_disconnect,
-    sftp_home_dir, sftp_list_dir, sftp_mkdir, sftp_parent_dir, sftp_remove, sftp_rename, cancel_sftp_transfer,
-    transfer_entries,
+    cancel_sftp_transfer, fs_create_file, fs_home_dir, fs_list_dir, fs_mkdir, fs_parent_dir,
+    fs_remove, fs_rename, sftp_connect, sftp_create_file, sftp_disconnect, sftp_home_dir,
+    sftp_list_dir, sftp_mkdir, sftp_parent_dir, sftp_remove, sftp_rename, transfer_entries,
     SftpState,
 };
 
@@ -32,6 +32,67 @@ fn global_known_hosts_null() -> &'static str {
     } else {
         "/dev/null"
     }
+}
+
+fn unique_download_path(dir: &std::path::Path, filename: &str) -> PathBuf {
+    let safe_name = PathBuf::from(filename)
+        .file_name()
+        .map(|n| n.to_owned())
+        .unwrap_or_else(|| std::ffi::OsString::from("foxinal-export.json"));
+    let path = dir.join(&safe_name);
+    if !path.exists() {
+        return path;
+    }
+
+    let stem = PathBuf::from(&safe_name)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("foxinal-export")
+        .to_string();
+    let ext = PathBuf::from(&safe_name)
+        .extension()
+        .and_then(|s| s.to_str())
+        .unwrap_or("json")
+        .to_string();
+
+    for i in 1..10_000 {
+        let candidate = dir.join(format!("{stem} ({i}).{ext}"));
+        if !candidate.exists() {
+            return candidate;
+        }
+    }
+
+    dir.join(format!("{}-{}.{}", stem, uuid_like(), ext))
+}
+
+/// Write an inventory export JSON into the user's Downloads folder.
+/// Returns the absolute path so the UI can reveal it in Finder / Files / Explorer.
+#[tauri::command]
+fn write_export_file(app: AppHandle, filename: String, contents: String) -> Result<String, String> {
+    let downloads = app
+        .path()
+        .download_dir()
+        .map_err(|e| format!("Could not resolve Downloads folder: {e}"))?;
+    fs::create_dir_all(&downloads)
+        .map_err(|e| format!("Could not create Downloads folder: {e}"))?;
+
+    let path = unique_download_path(&downloads, &filename);
+    fs::write(&path, contents).map_err(|e| format!("Could not write export file: {e}"))?;
+    Ok(path.to_string_lossy().to_string())
+}
+
+/// Read a user-selected import file (dialog / drag-drop path).
+#[tauri::command]
+fn read_text_file(path: String) -> Result<String, String> {
+    let path = path.trim();
+    if path.is_empty() {
+        return Err("No file path provided.".into());
+    }
+    let file_path = PathBuf::from(path);
+    if !file_path.is_file() {
+        return Err("That path is not a file.".into());
+    }
+    fs::read_to_string(&file_path).map_err(|e| format!("Could not read file: {e}"))
 }
 
 fn known_hosts_host_patterns(address: &str, port: u16) -> Vec<String> {
@@ -279,6 +340,7 @@ async fn clipboard_read_text() -> Result<String, String> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_pty::init())
         .manage(SftpState::default())
         .invoke_handler(tauri::generate_handler![
@@ -289,10 +351,13 @@ pub fn run() {
             clear_ssh_host_key,
             clipboard_write_text,
             clipboard_read_text,
+            write_export_file,
+            read_text_file,
             fs_home_dir,
             fs_list_dir,
             fs_parent_dir,
             fs_mkdir,
+            fs_create_file,
             fs_remove,
             fs_rename,
             sftp_connect,
@@ -301,6 +366,7 @@ pub fn run() {
             sftp_list_dir,
             sftp_parent_dir,
             sftp_mkdir,
+            sftp_create_file,
             sftp_remove,
             sftp_rename,
             cancel_sftp_transfer,

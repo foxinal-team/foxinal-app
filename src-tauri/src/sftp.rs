@@ -556,6 +556,24 @@ pub async fn fs_mkdir(path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub async fn fs_create_file(path: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let path = PathBuf::from(&path);
+        if path.exists() {
+            return Err("A file or folder with that name already exists.".into());
+        }
+        File::options()
+            .write(true)
+            .create_new(true)
+            .open(&path)
+            .map_err(|e| format!("Failed to create file: {e}"))?;
+        Ok(())
+    })
+    .await
+    .map_err(|e| format!("Create file task failed: {e}"))?
+}
+
+#[tauri::command]
 pub async fn fs_remove(path: String) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         let path = PathBuf::from(path);
@@ -799,6 +817,62 @@ fn mkdir_remote(session: &Session, path: &str) -> Result<(), String> {
                 format!("{exec_err} (SFTP fallback also failed: {e})")
             })
         }
+    }
+}
+
+#[tauri::command]
+pub async fn sftp_create_file(
+    state: State<'_, SftpState>,
+    session_id: String,
+    path: String,
+) -> Result<(), String> {
+    let live = take_session(&state, &session_id)?;
+    let sid = session_id.clone();
+    let joined = tauri::async_runtime::spawn_blocking(move || {
+        let result = create_file_remote(&live.session, &path);
+        (result, live)
+    })
+    .await
+    .map_err(|e| format!("SFTP task failed: {e}"))?;
+
+    let (result, live) = joined;
+    put_session(&state, sid, live)?;
+    result
+}
+
+fn create_file_remote(session: &Session, path: &str) -> Result<(), String> {
+    let path = path.trim();
+    if path.is_empty() || path == "/" {
+        return Err("Invalid remote file path.".into());
+    }
+    assert_safe_remote_delete(path).map_err(|_| {
+        "Refusing to create a file at that remote path.".to_string()
+    })?;
+
+    let sftp = session
+        .sftp()
+        .map_err(|e| format!("SFTP open failed: {e}"))?;
+    if sftp.stat(Path::new(path)).is_ok() {
+        return Err("A file or folder with that name already exists.".into());
+    }
+
+    // Prefer shell `set -C` (noclobber) so we never clobber an existing file.
+    let cmd = format!("set -C && : > {}", shell_quote(path));
+    match exec_command(session, &cmd) {
+        Ok((0, _)) => Ok(()),
+        Ok((status, stderr)) => {
+            let detail = stderr.trim();
+            sftp.create(Path::new(path)).map(|_| ()).map_err(|e| {
+                if detail.is_empty() {
+                    format!("Failed to create remote file (exit {status}): {e}")
+                } else {
+                    format!("Failed to create remote file: {detail}")
+                }
+            })
+        }
+        Err(exec_err) => sftp.create(Path::new(path)).map(|_| ()).map_err(|e| {
+            format!("{exec_err} (SFTP fallback also failed: {e})")
+        }),
     }
 }
 

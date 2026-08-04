@@ -28,13 +28,21 @@ function SecretToggle({
       variant="ghost"
       size="icon-sm"
       className={cn(
-        "shrink-0 text-ink-muted hover:bg-transparent hover:text-ink",
+        "z-10 shrink-0 bg-[var(--field-bg)] text-ink-muted hover:bg-[var(--field-bg)] hover:text-ink",
         className,
       )}
       disabled={disabled}
       aria-label={visible ? "Hide secret" : "Show secret"}
       aria-pressed={visible}
-      onClick={onToggle}
+      onMouseDown={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      }}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onToggle();
+      }}
       tabIndex={-1}
     >
       {visible ? (
@@ -55,11 +63,11 @@ function SecretInput({
   const [visible, setVisible] = React.useState(false);
 
   return (
-    <div className={cn("relative", wrapperClassName)}>
+    <div className={cn("relative min-w-0 max-w-full", wrapperClassName)}>
       <Input
         type={visible ? "text" : "password"}
         disabled={disabled}
-        className={cn("pr-10", className)}
+        className={cn("min-w-0 max-w-full pr-10", className)}
         {...props}
       />
       <SecretToggle
@@ -86,19 +94,19 @@ const SecretTextarea = React.forwardRef<
   const [visible, setVisible] = React.useState(false);
 
   return (
-    <div className={cn("relative", wrapperClassName)}>
+    <div className={cn("relative min-w-0 max-w-full", wrapperClassName)}>
       <Textarea
         ref={ref}
         disabled={disabled}
         spellCheck={false}
-        className={cn("pr-10", className)}
+        {...props}
+        className={cn("min-w-0 max-w-full pr-10", className)}
         style={{
           ...style,
           ...(visible
             ? undefined
             : ({ WebkitTextSecurity: "disc" } as React.CSSProperties)),
         }}
-        {...props}
       />
       <SecretToggle
         visible={visible}

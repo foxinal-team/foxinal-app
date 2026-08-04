@@ -180,7 +180,7 @@ export function HostDialog({
         </DialogHeader>
 
         <form
-          className="flex flex-col gap-3.5"
+          className="flex min-w-0 flex-col gap-3.5"
           onSubmit={handleSubmit}
           aria-busy={submitting || undefined}
         >
@@ -281,7 +281,7 @@ export function HostDialog({
             />
           </div>
 
-          <fieldset className="m-0 flex flex-col gap-3 border-0 p-0">
+          <fieldset className="m-0 flex min-w-0 flex-col gap-3 border-0 p-0">
             <legend className="mb-1.5 inline-flex items-center gap-1.5 text-[0.78rem] font-semibold text-foreground">
               <IconShieldLock {...labelIcon} /> Credentials
             </legend>
@@ -345,7 +345,7 @@ export function HostDialog({
                 />
               </div>
             ) : (
-              <div className="flex flex-col gap-1.5">
+              <div className="flex min-w-0 flex-col gap-1.5">
                 <Label
                   htmlFor="host-private-key"
                   className="text-[0.78rem] font-semibold"

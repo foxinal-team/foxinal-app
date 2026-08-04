@@ -5,6 +5,7 @@ import {
   IconCircleCheck,
   IconInfoCircle,
   IconLoader,
+  IconX,
 } from "@tabler/icons-react";
 import { Toaster as Sonner, type ToasterProps } from "sonner";
 
@@ -46,25 +47,53 @@ const Toaster = ({ ...props }: ToasterProps) => {
       theme={theme}
       className="toaster group"
       position="bottom-right"
+      offset={20}
+      gap={10}
+      visibleToasts={4}
       closeButton
+      duration={5200}
       icons={{
-        success: <IconCircleCheck className="size-4" />,
-        info: <IconInfoCircle className="size-4" />,
-        warning: <IconAlertTriangle className="size-4" />,
-        error: <IconAlertOctagon className="size-4" />,
-        loading: <IconLoader className="size-4 animate-spin" />,
+        success: <IconCircleCheck size={20} stroke={1.75} />,
+        info: <IconInfoCircle size={20} stroke={1.75} />,
+        warning: <IconAlertTriangle size={20} stroke={1.75} />,
+        error: <IconAlertOctagon size={20} stroke={1.75} />,
+        loading: <IconLoader size={20} stroke={1.75} className="animate-spin" />,
+        close: <IconX size={14} stroke={2} />,
       }}
       style={
         {
-          "--normal-bg": "var(--popover)",
-          "--normal-text": "var(--popover-foreground)",
-          "--normal-border": "var(--border)",
+          "--normal-bg": "var(--toast-bg)",
+          "--normal-text": "var(--ink)",
+          "--normal-border": "var(--toast-border)",
+          "--success-bg": "var(--toast-bg)",
+          "--success-text": "var(--ink)",
+          "--success-border": "var(--toast-border)",
+          "--error-bg": "var(--toast-bg)",
+          "--error-text": "var(--ink)",
+          "--error-border": "var(--toast-border)",
+          "--warning-bg": "var(--toast-bg)",
+          "--warning-text": "var(--ink)",
+          "--warning-border": "var(--toast-border)",
+          "--info-bg": "var(--toast-bg)",
+          "--info-text": "var(--ink)",
+          "--info-border": "var(--toast-border)",
           "--border-radius": "var(--radius)",
         } as CSSProperties
       }
       toastOptions={{
         classNames: {
-          toast: "cn-toast",
+          toast: "fox-toast",
+          title: "fox-toast-title",
+          description: "fox-toast-description",
+          content: "fox-toast-content",
+          icon: "fox-toast-icon",
+          actionButton: "fox-toast-action",
+          cancelButton: "fox-toast-cancel",
+          closeButton: "fox-toast-close",
+          success: "fox-toast-success",
+          error: "fox-toast-error",
+          warning: "fox-toast-warning",
+          info: "fox-toast-info",
         },
       }}
       {...props}

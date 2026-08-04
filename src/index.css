@@ -157,6 +157,12 @@
     0 1px 0 oklch(1 0 0 / 0.55) inset,
     0 8px 32px oklch(0.25 0.02 60 / 0.08);
   --shadow-sm: 0 1px 2px oklch(0.25 0.02 60 / 0.05);
+  --toast-bg: color-mix(in srgb, var(--surface-solid) 88%, transparent);
+  --toast-border: var(--line-strong);
+  --toast-shadow:
+    0 1px 0 oklch(1 0 0 / 0.65) inset,
+    0 10px 28px oklch(0.25 0.02 60 / 0.12),
+    0 2px 8px oklch(0.25 0.02 60 / 0.06);
   --radius-xs: 0.5rem;
   --blur-sm: 14px;
   --blur-md: 22px;
@@ -236,6 +242,12 @@
     0 1px 0 oklch(1 0 0 / 0.06) inset,
     0 12px 40px oklch(0 0 0 / 0.35);
   --shadow-sm: 0 1px 2px oklch(0 0 0 / 0.25);
+  --toast-bg: color-mix(in srgb, var(--surface-solid) 92%, transparent);
+  --toast-border: var(--line-strong);
+  --toast-shadow:
+    0 1px 0 oklch(1 0 0 / 0.08) inset,
+    0 16px 40px oklch(0 0 0 / 0.45),
+    0 0 0 1px oklch(1 0 0 / 0.04);
 
   --background: var(--mist);
   --foreground: var(--ink);
@@ -294,6 +306,12 @@
       0 1px 0 oklch(1 0 0 / 0.06) inset,
       0 12px 40px oklch(0 0 0 / 0.35);
     --shadow-sm: 0 1px 2px oklch(0 0 0 / 0.25);
+    --toast-bg: color-mix(in srgb, var(--surface-solid) 92%, transparent);
+    --toast-border: var(--line-strong);
+    --toast-shadow:
+      0 1px 0 oklch(1 0 0 / 0.08) inset,
+      0 16px 40px oklch(0 0 0 / 0.45),
+      0 0 0 1px oklch(1 0 0 / 0.04);
 
     --background: var(--mist);
     --foreground: var(--ink);
@@ -373,3 +391,185 @@
     font: inherit;
   }
 }
+
+/* Foxinal toasts — glass panel, accent rail, readable hierarchy */
+.fox-toast {
+  --width: min(100vw - 2rem, 22.5rem) !important;
+  position: relative !important;
+  width: var(--width) !important;
+  max-width: var(--width) !important;
+  display: flex !important;
+  align-items: flex-start !important;
+  gap: 0.75rem !important;
+  margin: 0 !important;
+  padding: 0.9rem 2.15rem 0.9rem 0.95rem !important;
+  border: 1px solid var(--toast-border) !important;
+  border-radius: var(--radius) !important;
+  background: var(--toast-bg) !important;
+  color: var(--ink) !important;
+  box-shadow: var(--toast-shadow) !important;
+  backdrop-filter: blur(var(--blur-md)) saturate(1.2);
+  -webkit-backdrop-filter: blur(var(--blur-md)) saturate(1.2);
+  font-family: var(--font-brand);
+  overflow: hidden;
+}
+
+.fox-toast::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.65rem;
+  bottom: 0.65rem;
+  width: 3px;
+  border-radius: 999px;
+  background: var(--fox);
+  box-shadow: 0 0 12px var(--glow-fox);
+}
+
+.fox-toast-success::before {
+  background: var(--success);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--success) 45%, transparent);
+}
+
+.fox-toast-error::before {
+  background: var(--error);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--error) 40%, transparent);
+}
+
+.fox-toast-warning::before {
+  background: var(--fox-deep);
+  box-shadow: 0 0 12px var(--glow-fox);
+}
+
+.fox-toast-info::before {
+  background: oklch(0.62 0.1 230);
+  box-shadow: 0 0 12px var(--glow-cool);
+}
+
+.fox-toast-icon {
+  position: relative !important;
+  box-sizing: border-box !important;
+  margin: 0.15rem 0 0 !important;
+  margin-inline: 0 !important;
+  width: 2rem !important;
+  height: 2rem !important;
+  min-width: 2rem !important;
+  min-height: 2rem !important;
+  border-radius: calc(var(--radius) * 0.55);
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
+  background: color-mix(in srgb, var(--fox) 14%, transparent);
+  color: var(--fox) !important;
+}
+
+.fox-toast-icon > * {
+  display: block !important;
+  flex-shrink: 0 !important;
+  margin: 0 !important;
+}
+
+.fox-toast-icon svg {
+  margin: 0 !important;
+  margin-inline: 0 !important;
+  width: 1.15rem !important;
+  height: 1.15rem !important;
+}
+
+.fox-toast-success .fox-toast-icon {
+  background: color-mix(in srgb, var(--success) 16%, transparent);
+  color: var(--success) !important;
+}
+
+.fox-toast-error .fox-toast-icon {
+  background: color-mix(in srgb, var(--error) 16%, transparent);
+  color: var(--error) !important;
+}
+
+.fox-toast-warning .fox-toast-icon {
+  background: color-mix(in srgb, var(--fox) 16%, transparent);
+  color: var(--fox-deep) !important;
+}
+
+.fox-toast-info .fox-toast-icon {
+  background: color-mix(in srgb, oklch(0.62 0.1 230) 16%, transparent);
+  color: oklch(0.55 0.1 230) !important;
+}
+
+.dark .fox-toast-info .fox-toast-icon,
+[data-theme="dark"] .fox-toast-info .fox-toast-icon {
+  color: oklch(0.78 0.08 230) !important;
+}
+
+.fox-toast-content {
+  min-width: 0 !important;
+  flex: 1 1 auto !important;
+  gap: 0.2rem !important;
+  overflow: hidden;
+}
+
+.fox-toast-title {
+  margin: 0 !important;
+  font-size: 0.875rem !important;
+  font-weight: 700 !important;
+  line-height: 1.35 !important;
+  letter-spacing: -0.01em;
+  color: var(--ink) !important;
+  overflow-wrap: anywhere;
+}
+
+.fox-toast-description {
+  margin: 0.15rem 0 0 !important;
+  font-size: 0.78rem !important;
+  font-weight: 500 !important;
+  line-height: 1.4 !important;
+  color: var(--ink-muted) !important;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.fox-toast-action {
+  margin: 0.15rem 0 0 auto !important;
+  height: 1.85rem !important;
+  padding: 0 0.7rem !important;
+  border: 1px solid color-mix(in srgb, var(--fox) 35%, var(--line)) !important;
+  border-radius: calc(var(--radius) * 0.55) !important;
+  background: color-mix(in srgb, var(--fox) 14%, transparent) !important;
+  color: var(--fox-deep) !important;
+  font-size: 0.72rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.01em;
+  box-shadow: none !important;
+  white-space: nowrap;
+}
+
+.fox-toast-action:hover {
+  background: color-mix(in srgb, var(--fox) 22%, transparent) !important;
+}
+
+.fox-toast-close {
+  position: absolute !important;
+  top: 0.45rem !important;
+  right: 0.45rem !important;
+  left: auto !important;
+  transform: none !important;
+  width: 1.5rem !important;
+  height: 1.5rem !important;
+  border: 1px solid var(--line) !important;
+  border-radius: calc(var(--radius) * 0.45) !important;
+  background: color-mix(in srgb, var(--surface-solid) 80%, transparent) !important;
+  color: var(--ink-muted) !important;
+  opacity: 1 !important;
+}
+
+.fox-toast-close:hover {
+  color: var(--ink) !important;
+  background: color-mix(in srgb, var(--fox) 12%, transparent) !important;
+  border-color: color-mix(in srgb, var(--fox) 30%, var(--line)) !important;
+}
+
+.toaster [data-sonner-toast][data-expanded="false"] {
+  opacity: 1;
+}
+

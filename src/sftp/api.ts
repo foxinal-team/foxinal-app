@@ -45,6 +45,10 @@ export async function fsMkdir(path: string): Promise<void> {
   await invoke("fs_mkdir", { path });
 }
 
+export async function fsCreateFile(path: string): Promise<void> {
+  await invoke("fs_create_file", { path });
+}
+
 export async function fsRemove(path: string): Promise<void> {
   await invoke("fs_remove", { path });
 }
@@ -90,6 +94,13 @@ export async function sftpMkdir(
   path: string,
 ): Promise<void> {
   await invoke("sftp_mkdir", { sessionId, path });
+}
+
+export async function sftpCreateFile(
+  sessionId: string,
+  path: string,
+): Promise<void> {
+  await invoke("sftp_create_file", { sessionId, path });
 }
 
 export async function sftpRemove(

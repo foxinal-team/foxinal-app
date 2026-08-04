@@ -3,6 +3,7 @@ import {
   IconDeviceDesktop,
   IconFolder,
   IconFolderPlus,
+  IconFilePlus,
   IconRefresh,
   IconServer,
   IconTrash,
@@ -15,16 +16,26 @@ import {
   IconGripVertical,
   IconCheck,
   IconPencil,
+  IconFolderOpen,
 } from "@tabler/icons-react";
 import {
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   useEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
+import { flushSync } from "react-dom";
 import { ConnectionOverlay } from "@/components/ConnectionOverlay";
 import { Button } from "@/components/ui/button";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import { Spinner } from "@/components/ui/spinner";
 import { ConfirmDeleteDialog } from "@/inventory/ConfirmDeleteDialog";
 import { NameDialog } from "@/inventory/NameDialog";
@@ -34,6 +45,7 @@ import { cn } from "@/lib/utils";
 import {
   formatBytes,
   formatModified,
+  fsCreateFile,
   fsHomeDir,
   fsListDir,
   fsMkdir,
@@ -45,6 +57,7 @@ import {
   canGoUp,
   parentPath,
   pathCrumbs,
+  sftpCreateFile,
   sftpHomeDir,
   sftpListDir,
   sftpMkdir,
@@ -110,17 +123,29 @@ export function SftpPane({
   const [deleteTarget, setDeleteTarget] = useState<FsEntry | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [mkdirOpen, setMkdirOpen] = useState(false);
+  const [createFileOpen, setCreateFileOpen] = useState(false);
   const [renameTarget, setRenameTarget] = useState<FsEntry | null>(null);
+  const [contextTarget, setContextTarget] = useState<FsEntry | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const listGenRef = useRef(0);
   const connectReadyRef = useRef(onConnectReady);
   connectReadyRef.current = onConnectReady;
 
   useEffect(() => {
-    const open = deleteTarget !== null || mkdirOpen || renameTarget !== null;
+    const open =
+      deleteTarget !== null ||
+      mkdirOpen ||
+      createFileOpen ||
+      renameTarget !== null;
     onBlockingDialogChange?.(open);
     return () => onBlockingDialogChange?.(false);
-  }, [deleteTarget, mkdirOpen, renameTarget, onBlockingDialogChange]);
+  }, [
+    deleteTarget,
+    mkdirOpen,
+    createFileOpen,
+    renameTarget,
+    onBlockingDialogChange,
+  ]);
 
   // Clear stale files as soon as a host connect starts.
   useEffect(() => {
@@ -257,18 +282,7 @@ export function SftpPane({
     try {
       if (connection.kind === "local") await fsMkdir(next);
       else await sftpMkdir(connection.sessionId, next);
-      setEntries((prev) => {
-        if (prev.some((e) => e.path === next)) return prev;
-        const merged = [...prev, optimistic];
-        merged.sort((a, b) => {
-          if (a.kind === "dir" && b.kind !== "dir") return -1;
-          if (a.kind !== "dir" && b.kind === "dir") return 1;
-          return a.name.localeCompare(b.name, undefined, {
-            sensitivity: "base",
-          });
-        });
-        return merged;
-      });
+      insertOptimistic(optimistic);
       onStatus(`Created “${name}”.`);
       void loadPath(path, { soft: true });
       return { ok: true as const };
@@ -278,6 +292,68 @@ export function SftpPane({
         error: invokeErrorMessage(err, "Create failed."),
       };
     }
+  }
+
+  async function createFile(rawName: string) {
+    const name = rawName.trim();
+    if (!name) return { ok: false as const, error: "Enter a file name." };
+    if (/[\\/]/.test(name) || name === "." || name === "..") {
+      return {
+        ok: false as const,
+        error: "File name can’t include path separators.",
+      };
+    }
+    if (entries.some((e) => e.name === name)) {
+      return {
+        ok: false as const,
+        error: `“${name}” already exists here.`,
+      };
+    }
+
+    const next =
+      connection.kind === "local"
+        ? joinLocal(path, name)
+        : joinRemote(path, name);
+
+    const optimistic: FsEntry = {
+      name,
+      path: next,
+      kind: "file",
+      size: 0,
+      modified: null,
+      hidden: name.startsWith("."),
+      sizeLabel: formatBytes(0),
+      modifiedLabel: "—",
+    };
+
+    try {
+      if (connection.kind === "local") await fsCreateFile(next);
+      else await sftpCreateFile(connection.sessionId, next);
+      insertOptimistic(optimistic);
+      onStatus(`Created “${name}”.`);
+      void loadPath(path, { soft: true });
+      return { ok: true as const };
+    } catch (err) {
+      return {
+        ok: false as const,
+        error: invokeErrorMessage(err, "Create failed."),
+      };
+    }
+  }
+
+  function insertOptimistic(entry: FsEntry) {
+    setEntries((prev) => {
+      if (prev.some((e) => e.path === entry.path)) return prev;
+      const merged = [...prev, entry];
+      merged.sort((a, b) => {
+        if (a.kind === "dir" && b.kind !== "dir") return -1;
+        if (a.kind !== "dir" && b.kind === "dir") return 1;
+        return a.name.localeCompare(b.name, undefined, {
+          sensitivity: "base",
+        });
+      });
+      return merged;
+    });
   }
 
   function requestDeleteSelected() {
@@ -292,6 +368,29 @@ export function SftpPane({
     const entry = entries.find((e) => e.path === selected[0]);
     if (!entry) return;
     setRenameTarget(entry);
+  }
+
+  function onListContextMenu(e: ReactMouseEvent) {
+    if (showOverlay || !path) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    const target = e.target as HTMLElement | null;
+    const row = target?.closest<HTMLElement>("[data-sftp-entry]");
+    // Sync so the menu content matches this right-click immediately.
+    flushSync(() => {
+      if (row) {
+        const entryPath = row.dataset.sftpEntry;
+        const entry = entries.find((item) => item.path === entryPath) ?? null;
+        setContextTarget(entry);
+        if (entry && !selected.includes(entry.path)) {
+          setSelected([entry.path]);
+        }
+        return;
+      }
+      setContextTarget(null);
+    });
   }
 
   async function renameEntry(rawName: string) {
@@ -556,6 +655,18 @@ export function SftpPane({
             variant="ghost"
             size="icon-sm"
             className="size-8"
+            title="New file"
+            aria-label="New file"
+            disabled={showOverlay || !path}
+            onClick={() => setCreateFileOpen(true)}
+          >
+            <IconFilePlus {...iconSm} aria-hidden />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="size-8"
             title="New folder"
             aria-label="New folder"
             disabled={showOverlay || !path}
@@ -658,145 +769,228 @@ export function SftpPane({
           </div>
         ) : null}
 
-        <div
-          className={cn(
-            "min-h-0 flex-1 overflow-auto p-1.5 [scrollbar-width:thin]",
-            showOverlay && "invisible",
-            loading && !showOverlay && "pointer-events-none"
-          )}
-          role="list"
+        <ContextMenu
+          onOpenChange={(open) => {
+            if (!open) setContextTarget(null);
+          }}
         >
-          {!loading && !showParentRow && visible.length === 0 ? (
-            showOverlay ? null : (
-              <p className="mx-3 my-6 text-center text-[0.85rem] text-ink-muted">
-                This folder is empty.
-              </p>
-            )
-          ) : (
-            <>
-              {showParentRow ? (
-                <div
-                  role="listitem"
-                  className="grid grid-cols-[1.5rem_minmax(0,1fr)] items-center gap-0.5 rounded-sm"
-                >
-                  <span className="size-6" aria-hidden />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="h-auto min-w-0 grid grid-cols-[1.25rem_minmax(0,1fr)_4.5rem_5.5rem] items-center gap-2 rounded-sm px-1.5 py-1.5 text-left text-ink shadow-none hover:bg-foreground/5"
-                    disabled={loading}
-                    onClick={() => void goUp()}
-                    onDoubleClick={() => void goUp()}
-                    title="Go to parent folder"
-                  >
-                    <span className="grid place-items-center text-fox" aria-hidden>
-                      <IconFolder size={18} stroke={1.75} />
-                    </span>
-                    <span className="truncate text-[0.8125rem] font-semibold">..</span>
-                    <span className="truncate text-[0.7rem] text-ink-muted">—</span>
-                    <span className="truncate text-right text-[0.7rem] text-ink-muted">
-                      —
-                    </span>
-                  </Button>
-                </div>
-              ) : null}
-              {visible.map((entry) => {
-                const isSelected = selected.includes(entry.path);
-                const isDragging = !!draggingPaths?.includes(entry.path);
-                return (
-                  <div
-                    key={entry.path}
-                    role="listitem"
-                    className={cn(
-                      "grid grid-cols-[1.5rem_minmax(0,1fr)] items-center gap-0.5 rounded-sm",
-                      isSelected && "bg-fox/10",
-                      isDragging && "opacity-45"
-                    )}
-                  >
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-xs"
-                      className="size-6 cursor-grab text-ink-muted active:cursor-grabbing"
-                      title="Drag to other pane to copy"
-                      aria-label={`Drag ${entry.name} to copy`}
-                      tabIndex={-1}
-                      disabled={loading}
-                      onPointerDown={(e) => {
-                        const batch =
-                          selected.includes(entry.path) && selected.length > 1
-                            ? visible.filter((item) =>
-                                selected.includes(item.path),
-                              )
-                            : [entry];
-                        if (!selected.includes(entry.path)) {
-                          setSelected([entry.path]);
-                        }
-                        onDragGrip(batch, e);
-                      }}
+          <ContextMenuTrigger asChild>
+            <div
+              className={cn(
+                "min-h-0 flex-1 overflow-auto p-1.5 [scrollbar-width:thin]",
+                showOverlay && "invisible",
+                loading && !showOverlay && "pointer-events-none"
+              )}
+              role="list"
+              onContextMenu={onListContextMenu}
+            >
+              {!loading && !showParentRow && visible.length === 0 ? (
+                showOverlay ? null : (
+                  <p className="mx-3 my-6 text-center text-[0.85rem] text-ink-muted">
+                    This folder is empty.
+                  </p>
+                )
+              ) : (
+                <>
+                  {showParentRow ? (
+                    <div
+                      role="listitem"
+                      data-sftp-parent=""
+                      className="grid grid-cols-[1.5rem_minmax(0,1fr)] items-center gap-0.5 rounded-sm"
                     >
-                      <IconGripVertical size={16} stroke={1.75} aria-hidden />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      className="h-auto min-w-0 grid grid-cols-[1.25rem_minmax(0,1fr)_4.5rem_5.5rem] items-center gap-2 rounded-sm px-1.5 py-1.5 text-left text-ink shadow-none hover:bg-foreground/5"
-                      disabled={loading}
-                      aria-label={
-                        entry.kind === "dir"
-                          ? `${entry.name}, folder. Select with click, open with Enter`
-                          : `${entry.name}, file`
-                      }
-                      aria-pressed={isSelected}
-                      onClick={(e) =>
-                        toggleSelect(entry.path, e.metaKey || e.ctrlKey)
-                      }
-                      onDoubleClick={() => void openEntry(entry)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          void openEntry(entry);
-                        }
-                      }}
-                      title={
-                        entry.kind === "dir"
-                          ? "Click to select · Enter or double-click to open"
-                          : entry.name
-                      }
-                    >
-                      <span
-                        className={cn(
-                          "grid place-items-center",
-                          entry.kind === "dir" ? "text-fox" : "text-ink-muted"
-                        )}
-                        aria-hidden
+                      <span className="size-6" aria-hidden />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="h-auto min-w-0 grid grid-cols-[1.25rem_minmax(0,1fr)_4.5rem_5.5rem] items-center gap-2 rounded-sm px-1.5 py-1.5 text-left text-ink shadow-none hover:bg-foreground/5"
+                        disabled={loading}
+                        onClick={() => void goUp()}
+                        onDoubleClick={() => void goUp()}
+                        title="Go to parent folder"
                       >
-                        {entry.kind === "dir" ? (
+                        <span
+                          className="grid place-items-center text-fox"
+                          aria-hidden
+                        >
                           <IconFolder size={18} stroke={1.75} />
-                        ) : (
-                          <IconFile size={18} stroke={1.75} />
+                        </span>
+                        <span className="truncate text-[0.8125rem] font-semibold">
+                          ..
+                        </span>
+                        <span className="truncate text-[0.7rem] text-ink-muted">
+                          —
+                        </span>
+                        <span className="truncate text-right text-[0.7rem] text-ink-muted">
+                          —
+                        </span>
+                      </Button>
+                    </div>
+                  ) : null}
+                  {visible.map((entry) => {
+                    const isSelected = selected.includes(entry.path);
+                    const isDragging = !!draggingPaths?.includes(entry.path);
+                    return (
+                      <div
+                        key={entry.path}
+                        role="listitem"
+                        data-sftp-entry={entry.path}
+                        className={cn(
+                          "grid grid-cols-[1.5rem_minmax(0,1fr)] items-center gap-0.5 rounded-sm",
+                          isSelected && "bg-fox/10",
+                          isDragging && "opacity-45"
                         )}
-                      </span>
-                      <span className="truncate text-[0.8125rem] font-semibold">
-                        {entry.name}
-                      </span>
-                      <span className="truncate text-[0.7rem] tabular-nums text-ink-muted">
-                        {entry.sizeLabel ??
-                          (entry.kind === "dir"
-                            ? "—"
-                            : formatBytes(entry.size))}
-                      </span>
-                      <span className="truncate text-right text-[0.7rem] text-ink-muted">
-                        {entry.modifiedLabel ?? formatModified(entry.modified)}
-                      </span>
-                    </Button>
-                  </div>
-                );
-              })}
-            </>
-          )}
-        </div>
+                      >
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-xs"
+                          className="size-6 cursor-grab text-ink-muted active:cursor-grabbing"
+                          title="Drag to other pane to copy"
+                          aria-label={`Drag ${entry.name} to copy`}
+                          tabIndex={-1}
+                          disabled={loading}
+                          onPointerDown={(e) => {
+                            const batch =
+                              selected.includes(entry.path) &&
+                              selected.length > 1
+                                ? visible.filter((item) =>
+                                    selected.includes(item.path),
+                                  )
+                                : [entry];
+                            if (!selected.includes(entry.path)) {
+                              setSelected([entry.path]);
+                            }
+                            onDragGrip(batch, e);
+                          }}
+                        >
+                          <IconGripVertical
+                            size={16}
+                            stroke={1.75}
+                            aria-hidden
+                          />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          className="h-auto min-w-0 grid grid-cols-[1.25rem_minmax(0,1fr)_4.5rem_5.5rem] items-center gap-2 rounded-sm px-1.5 py-1.5 text-left text-ink shadow-none hover:bg-foreground/5"
+                          disabled={loading}
+                          aria-label={
+                            entry.kind === "dir"
+                              ? `${entry.name}, folder. Select with click, open with Enter`
+                              : `${entry.name}, file`
+                          }
+                          aria-pressed={isSelected}
+                          onClick={(e) =>
+                            toggleSelect(entry.path, e.metaKey || e.ctrlKey)
+                          }
+                          onDoubleClick={() => void openEntry(entry)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              void openEntry(entry);
+                            }
+                          }}
+                          title={
+                            entry.kind === "dir"
+                              ? "Click to select · Enter or double-click to open"
+                              : entry.name
+                          }
+                        >
+                          <span
+                            className={cn(
+                              "grid place-items-center",
+                              entry.kind === "dir"
+                                ? "text-fox"
+                                : "text-ink-muted"
+                            )}
+                            aria-hidden
+                          >
+                            {entry.kind === "dir" ? (
+                              <IconFolder size={18} stroke={1.75} />
+                            ) : (
+                              <IconFile size={18} stroke={1.75} />
+                            )}
+                          </span>
+                          <span className="truncate text-[0.8125rem] font-semibold">
+                            {entry.name}
+                          </span>
+                          <span className="truncate text-[0.7rem] tabular-nums text-ink-muted">
+                            {entry.sizeLabel ??
+                              (entry.kind === "dir"
+                                ? "—"
+                                : formatBytes(entry.size))}
+                          </span>
+                          <span className="truncate text-right text-[0.7rem] text-ink-muted">
+                            {entry.modifiedLabel ??
+                              formatModified(entry.modified)}
+                          </span>
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </>
+              )}
+            </div>
+          </ContextMenuTrigger>
+          <ContextMenuContent className="w-48">
+            {contextTarget ? (
+              <>
+                {contextTarget.kind === "dir" ? (
+                  <ContextMenuItem
+                    onSelect={() => void openEntry(contextTarget)}
+                  >
+                    <IconFolderOpen size={16} stroke={1.75} aria-hidden />
+                    Open
+                  </ContextMenuItem>
+                ) : null}
+                <ContextMenuItem
+                  onSelect={() => setRenameTarget(contextTarget)}
+                >
+                  <IconPencil size={16} stroke={1.75} aria-hidden />
+                  Rename
+                </ContextMenuItem>
+                <ContextMenuItem
+                  variant="destructive"
+                  onSelect={() => setDeleteTarget(contextTarget)}
+                >
+                  <IconTrash size={16} stroke={1.75} aria-hidden />
+                  Delete
+                </ContextMenuItem>
+                <ContextMenuSeparator />
+              </>
+            ) : null}
+            <ContextMenuItem
+              disabled={!path}
+              onSelect={() => setCreateFileOpen(true)}
+            >
+              <IconFilePlus size={16} stroke={1.75} aria-hidden />
+              New file
+            </ContextMenuItem>
+            <ContextMenuItem
+              disabled={!path}
+              onSelect={() => setMkdirOpen(true)}
+            >
+              <IconFolderPlus size={16} stroke={1.75} aria-hidden />
+              New folder
+            </ContextMenuItem>
+          </ContextMenuContent>
+        </ContextMenu>
       </div>
+
+      <NameDialog
+        open={createFileOpen}
+        title="New file"
+        lede={path ? `Inside ${path}` : "Choose a folder first."}
+        submitLabel="Create"
+        placeholder="e.g. notes.txt"
+        emptyError="Enter a file name."
+        saveError="Could not create file."
+        onClose={() => setCreateFileOpen(false)}
+        onSubmitName={(name) => createFile(name)}
+        icon={<IconFilePlus size={22} stroke={1.75} aria-hidden />}
+        submitIcon={<IconCheck size={16} stroke={1.75} aria-hidden />}
+        cancelIcon={<IconX size={16} stroke={1.75} aria-hidden />}
+      />
 
       <NameDialog
         open={mkdirOpen}

@@ -1,3 +1,4 @@
+import { invoke } from "@tauri-apps/api/core";
 import { normalizeInventoryItems } from "./store";
 import {
   createId,
@@ -87,6 +88,34 @@ export function downloadExport(payload: FoxinalExport, filename: string) {
   anchor.download = filename;
   anchor.click();
   URL.revokeObjectURL(url);
+}
+
+/** Write export into Downloads via Tauri; returns the absolute file path. */
+export async function writeExportFile(
+  payload: FoxinalExport,
+  filename: string,
+): Promise<string> {
+  return invoke<string>("write_export_file", {
+    filename,
+    contents: JSON.stringify(payload, null, 2),
+  });
+}
+
+/** Prefer a short path for toasts; full path stays in the title tooltip. */
+export function shortPathForDisplay(path: string): string {
+  const normalized = path.replace(/\\/g, "/");
+  const parts = normalized.split("/").filter(Boolean);
+  if (parts.length <= 2) return path;
+  return parts.slice(-2).join("/");
+}
+
+/** Label for revealing a file in the OS file manager. */
+export function revealInFolderLabel(): string {
+  const platform = `${navigator.platform} ${navigator.userAgent}`.toLowerCase();
+  if (platform.includes("mac")) return "Show in Finder";
+  if (platform.includes("win")) return "Show in File Explorer";
+  // Linux: GNOME Files, Dolphin, Nautilus, etc.
+  return "Show in Files";
 }
 
 function sortParentsFirst(items: InventoryItem[]): InventoryItem[] {
@@ -212,4 +241,38 @@ export async function readExportFile(
   } catch {
     return { ok: false, error: "Invalid JSON file." };
   }
+}
+
+/** Read + parse an export from a filesystem path (Tauri dialog / drag-drop). */
+export async function readExportPath(
+  path: string,
+): Promise<TransferResult & { items?: InventoryItem[] }> {
+  let text: string;
+  try {
+    text = await invoke<string>("read_text_file", { path });
+  } catch (err) {
+    const message =
+      typeof err === "string" && err.trim()
+        ? err
+        : err instanceof Error
+          ? err.message
+          : "Could not read the selected file.";
+    return { ok: false, error: message };
+  }
+
+  try {
+    return parseExportPayload(JSON.parse(text));
+  } catch {
+    return { ok: false, error: "Invalid JSON file." };
+  }
+}
+
+export function isJsonPath(path: string): boolean {
+  return path.toLowerCase().endsWith(".json");
+}
+
+export function basenameFromPath(path: string): string {
+  const normalized = path.replace(/\\/g, "/");
+  const parts = normalized.split("/");
+  return parts[parts.length - 1] || path;
 }

@@ -27,10 +27,10 @@ SSH connection manager (in progress). Local-first dashboard (nested groups + SSH
 
 ## UI components
 
-- shadcn primitives in `src/components/ui/*` (`Button`, `Dialog`, `Input`, `Label`, `Tabs`, `Switch`, `Select`, `Slider`, `Separator`, `Textarea`, `Progress`, `Spinner`, `Checkbox`, `ScrollArea`)
+- shadcn primitives in `src/components/ui/*` (`Button`, `Dialog`, `Input`, `Label`, `Tabs`, `Switch`, `Select`, `Slider`, `Separator`, `Textarea`, `Progress`, `Spinner`, `Checkbox`, `ScrollArea`, `ContextMenu`)
 - Dialog sizes: `default` | `wide` | `settings`; glass styles; `showCloseButton` defaults false
 - Loading: `Spinner`, `Progress` (`indeterminate`), shared `ConnectionOverlay` (SSH/SFTP connect + error)
-- **Toasts:** Sonner (`src/components/ui/sonner.tsx` + `<Toaster />` in `main.tsx`); helpers in `src/lib/toast.ts` (`success` / `error` / `info` / `warning`). Theme follows `data-theme` (no next-themes). Use for transient feedback; keep actionable overlays (Retry/Dismiss) on-page
+- **Toasts:** Sonner (`src/components/ui/sonner.tsx` + `<Toaster />` in `main.tsx`); helpers in `src/lib/toast.ts` (`success` / `error` / `info` / `warning`). Theme follows `data-theme` (no next-themes). Glass `.fox-toast` styles in `src/index.css` (accent rail + variant icon chip). Use for transient feedback; keep actionable overlays (Retry/Dismiss) on-page
 - **Styling:** Tailwind v4 tokens + shadcn in `src/index.css` only — screens use utilities + shadcn (no BEM / no `features.css`). Shared: `Atmosphere`, `ThemeToggle`, `DialogIcon`, `ConnectionOverlay`
 - **xterm FitAddon:** never pad the measure host; put padding on `.xterm` inside `.fox-xterm-host` (`src/styles/xterm-host.css` imported by TerminalView) or the last row clips
 - Inventory dialogs + `SettingsDialog` use shadcn Dialog (`open` / `onOpenChange`)
@@ -66,11 +66,13 @@ src/
 - Host fields: label, address, port (22), username, password **or** private key
 - **Sibling names unique** under each parent (groups + hosts share the namespace)
 - **Duplicate host** (copy icon) opens prefilled create dialog (`name copy`, same credentials)
-- Dashboard: **search** current folder **and nested** groups/hosts (shows relative path), **list/grid** + **A–Z / Z–A** (`foxinal-inventory-layout`, `foxinal-inventory-sort`)
-- **Import / Export** JSON (`foxinal-inventory` v1): at root = whole inventory; inside a group = that group’s subtree / import into that group
+- Dashboard: **search** current folder **and nested** groups/hosts (shows relative path); ⌘F / Ctrl+F focuses search (Esc clears/blurs); **list/grid** + **A–Z / Z–A** (`foxinal-inventory-layout`, `foxinal-inventory-sort`)
+- **Import / Export** JSON (`foxinal-inventory` v1): Import opens `ImportDialog` — Tauri `onDragDropEvent` + native `dialog` open filtered to `.json`; Export writes to Downloads via `write_export_file` and toast links to reveal in Finder / Files / Explorer (`revealItemInDir`); at root = whole inventory; inside a group = that group’s subtree / import into that group
+- Plugins: `tauri-plugin-opener`, `tauri-plugin-dialog` (capabilities: `opener:default`, `dialog:default`)
 - **Inventory** — double-click anywhere on a card to open a group / connect to a host (grip + action buttons excluded); grip-drag to move
 - **Drag-and-drop**: pointer-based (not HTML5 — unreliable in Tauri WebKit); grip `onPointerDown` → window `pointermove`/`pointerup` + `elementsFromPoint` on `[data-fox-drop]`; drop opens destination; blocked for self/descendant / name clash / already there
-- **SFTP** — dual panes; ⌘/Ctrl multi-select + grip-drag copy; rename / new folder / delete; concurrent transfers with separate progress/cancel; browse works while transferring; optimistic delete & soft refresh
+- **SFTP** — dual panes; ⌘/Ctrl multi-select + grip-drag copy; right-click context menu (open/rename/delete + new file/folder); toolbar new file (`IconFilePlus`) / new folder / rename / delete; empty-space right-click creates file/folder; concurrent transfers with separate progress/cancel; browse works while transferring; optimistic delete & soft refresh
+- SFTP create empty file: `fs_create_file` / `sftp_create_file` (local `create_new`, remote shell noclobber + SFTP `create` fallback)
 - Password auth auto-types when SSH password prompt appears; temp keys cleaned via `cleanup_ssh_temp`
 - Terminal clipboard: Ctrl+Shift+C/V (Linux/Windows), ⌘C/⌘V (macOS), Ctrl/Shift+Insert — prefer browser paste event; native `arboard` via `spawn_blocking` as fallback (`wayland-data-control` on Linux)
 - PTY: vendored `src-tauri/crates/tauri-plugin-pty` — blocking read/wait moved to `spawn_blocking` (upstream freezes multi-session apps on Linux)
