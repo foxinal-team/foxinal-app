@@ -72,6 +72,7 @@ import {
   fontFamilyForId,
   normalizeScrollback,
   resolveTerminalTheme,
+  themeAccentColors,
   type TerminalPrefs,
   type TerminalThemeId,
 } from "./terminalPrefs";
@@ -97,13 +98,6 @@ const SETTINGS_SECTION_CLASS = cn(
   "motion-safe:animate-[panel-rise_0.28s_var(--ease)_both]",
   "data-[state=inactive]:!hidden",
 );
-
-const THEME_SWATCH_BG: Record<string, string> = {
-  system: "bg-[linear-gradient(135deg,#f7f6fa_50%,#0f0e14_50%)]",
-  dark: "bg-[#0f0e14]",
-  light: "bg-[#f7f6fa]",
-  fox: "bg-[linear-gradient(135deg,#ea580c,#1a100c)]",
-};
 
 type SettingsDialogProps = {
   open: boolean;
@@ -350,7 +344,7 @@ export function SettingsDialog({
         >
           <TabsList
             aria-label="Settings sections"
-            className="!mt-4 !mb-[0.95rem] !flex !h-auto min-h-0 w-full flex-wrap items-stretch justify-stretch gap-1 overflow-hidden rounded-[var(--radius-md)] border border-line bg-[var(--field-bg)] !p-[0.2rem] group-data-horizontal/tabs:!h-auto"
+            className="relative z-10 !mt-4 !mb-[0.95rem] !flex !h-auto min-h-0 w-full shrink-0 flex-wrap items-stretch justify-stretch gap-1 overflow-visible rounded-[var(--radius-md)] border border-line bg-[var(--field-bg)] !p-[0.2rem] group-data-horizontal/tabs:!h-auto"
           >
             <TabsTrigger value="terminal" className={SETTINGS_TAB_TRIGGER_CLASS}>
               <IconTerminal2 size={16} stroke={1.75} aria-hidden />
@@ -370,14 +364,65 @@ export function SettingsDialog({
             </TabsTrigger>
           </TabsList>
 
+          {section === "terminal" ? (
+            <div className="mb-[0.85rem] shrink-0 space-y-1.5 border-b border-line pb-[0.85rem]">
+              <div className="flex items-baseline justify-between gap-2">
+                <Label className="text-[0.78rem] font-semibold">
+                  Live preview
+                </Label>
+                <span className="text-[0.7rem] text-ink-muted">
+                  Font, size & theme
+                </span>
+              </div>
+              <div
+                className="m-0 overflow-hidden rounded-[var(--radius-sm)] border border-line px-[0.85rem] py-3 font-mono leading-[1.45] transition-[background-color,color,border-color] duration-150 ease-[var(--ease)]"
+                style={{
+                  fontFamily: fontFamilyForId(draft.fontId),
+                  fontSize: draft.fontSize,
+                  background: previewTheme.background,
+                  color: previewTheme.foreground,
+                  borderColor: previewTheme.selectionBackground,
+                }}
+                aria-label="Terminal appearance preview"
+              >
+                <p className="m-0 truncate">
+                  <span style={{ color: previewTheme.green }}>user</span>
+                  <span style={{ color: previewTheme.foreground }}>@</span>
+                  <span style={{ color: previewTheme.cyan }}>foxinal</span>
+                  <span style={{ color: previewTheme.foreground }}>:</span>
+                  <span style={{ color: previewTheme.blue }}>~</span>
+                  <span style={{ color: previewTheme.foreground }}>$ </span>
+                  <span style={{ color: previewTheme.foreground }}>
+                    echo{" "}
+                  </span>
+                  <span style={{ color: previewTheme.yellow }}>
+                    &quot;preview&quot;
+                  </span>
+                </p>
+                <p className="mt-1.5 mb-0 flex flex-wrap gap-1.5">
+                  {themeAccentColors(previewTheme).map((color) => (
+                    <span
+                      key={color}
+                      className="inline-block size-2.5 rounded-full"
+                      style={{ background: color }}
+                      aria-hidden
+                    />
+                  ))}
+                </p>
+              </div>
+            </div>
+          ) : null}
+
           <div
             className={cn(
-              "min-h-0 max-h-full flex-[0_1_auto] overflow-x-hidden overflow-y-auto pr-[0.15rem] [scrollbar-width:thin]",
+              "min-h-0 flex-1 overflow-x-hidden overflow-y-auto pr-[0.15rem] [scrollbar-width:thin]",
               bodyHeight !== undefined &&
                 "motion-safe:transition-[height] motion-safe:duration-300 motion-safe:ease-[var(--ease)]",
             )}
             style={
-              bodyHeight !== undefined ? { height: bodyHeight } : undefined
+              bodyHeight !== undefined
+                ? { height: `min(${bodyHeight}px, 100%)` }
+                : undefined
             }
           >
             <div ref={bodyInnerRef} className="block">
@@ -467,64 +512,71 @@ export function SettingsDialog({
                   </p>
                 </div>
 
-                <fieldset className="m-0 flex flex-col gap-3 border-0 p-0">
-                  <legend className="mb-[0.35rem] inline-flex items-center gap-[0.3rem] text-[0.78rem] font-semibold text-ink">
+                <fieldset className="m-0 flex flex-col gap-2.5 border-0 p-0">
+                  <legend className="mb-0 inline-flex items-center gap-[0.3rem] text-[0.78rem] font-semibold text-ink">
                     Theme
                   </legend>
                   <div
-                    className="grid grid-cols-2 gap-[0.45rem]"
+                    className="grid grid-cols-1 gap-2 sm:grid-cols-2"
                     role="group"
                     aria-label="Terminal theme"
                   >
-                    {TERMINAL_THEMES.map((theme) => (
-                      <Button
-                        key={theme.id}
-                        type="button"
-                        variant="outline"
-                        className={cn(
-                          "h-auto justify-start gap-2 rounded-[var(--radius-sm)] border-line bg-[var(--field-bg)] px-[0.65rem] py-[0.55rem] text-left text-[0.8rem] font-semibold text-ink-muted shadow-none",
-                          draft.theme === theme.id &&
-                            "border-[color-mix(in_srgb,var(--fox)_45%,var(--line))] bg-[color-mix(in_srgb,var(--fox)_8%,var(--field-bg))] text-ink hover:bg-[color-mix(in_srgb,var(--fox)_8%,var(--field-bg))]",
-                        )}
-                        aria-pressed={draft.theme === theme.id}
-                        onClick={() =>
-                          updateDraft("theme", theme.id as TerminalThemeId)
-                        }
-                      >
-                        <span
+                    {TERMINAL_THEMES.map((theme) => {
+                      const swatch = resolveTerminalTheme(theme.id, appTheme);
+                      const accents = themeAccentColors(swatch);
+                      const selected = draft.theme === theme.id;
+                      return (
+                        <Button
+                          key={theme.id}
+                          type="button"
+                          variant="outline"
                           className={cn(
-                            "size-[1.15rem] shrink-0 rounded-[0.3rem] border border-line",
-                            THEME_SWATCH_BG[theme.id],
+                            "h-auto flex-col items-stretch gap-2 rounded-[var(--radius-sm)] border-line bg-[var(--field-bg)] p-2 text-left shadow-none",
+                            "hover:bg-[var(--field-bg-hover)]",
+                            selected &&
+                              "border-[color-mix(in_srgb,var(--fox)_50%,var(--line))] bg-[color-mix(in_srgb,var(--fox)_8%,var(--field-bg))] ring-[3px] ring-[var(--ring)] hover:bg-[color-mix(in_srgb,var(--fox)_8%,var(--field-bg))]",
                           )}
-                          aria-hidden
-                        />
-                        <span>{theme.label}</span>
-                      </Button>
-                    ))}
+                          aria-pressed={selected}
+                          onClick={() =>
+                            updateDraft("theme", theme.id as TerminalThemeId)
+                          }
+                        >
+                          <span
+                            className="relative block overflow-hidden rounded-[calc(var(--radius-sm)-0.15rem)] border border-black/10 px-2.5 py-2 font-mono text-[0.68rem] leading-none dark:border-white/10"
+                            style={{
+                              background: swatch.background,
+                              color: swatch.foreground,
+                            }}
+                            aria-hidden
+                          >
+                            <span className="flex items-center gap-1 opacity-90">
+                              <span style={{ color: swatch.green }}>❯</span>
+                              <span style={{ color: swatch.cyan }}>fox</span>
+                              <span style={{ color: swatch.yellow }}>~</span>
+                            </span>
+                            <span className="mt-2 flex gap-1">
+                              {accents.map((color) => (
+                                <span
+                                  key={color}
+                                  className="size-2 rounded-full"
+                                  style={{ background: color }}
+                                />
+                              ))}
+                            </span>
+                          </span>
+                          <span className="flex min-w-0 flex-col gap-0.5 px-0.5">
+                            <span className="truncate text-[0.8rem] font-bold text-ink">
+                              {theme.label}
+                            </span>
+                            <span className="truncate text-[0.7rem] font-medium text-ink-muted">
+                              {theme.blurb}
+                            </span>
+                          </span>
+                        </Button>
+                      );
+                    })}
                   </div>
                 </fieldset>
-
-                <p
-                  className="m-0 overflow-hidden rounded-[var(--radius-sm)] border border-line px-[0.85rem] py-3 font-mono leading-[1.45] text-ellipsis whitespace-nowrap transition-[background-color,color,border-color] duration-150 ease-[var(--ease)]"
-                  style={{
-                    fontFamily: fontFamilyForId(draft.fontId),
-                    fontSize: draft.fontSize,
-                    background: previewTheme.background,
-                    color: previewTheme.foreground,
-                    borderColor: previewTheme.selectionBackground,
-                  }}
-                >
-                  <span style={{ color: previewTheme.green }}>user</span>
-                  <span style={{ color: previewTheme.foreground }}>@</span>
-                  <span style={{ color: previewTheme.cyan }}>foxinal</span>
-                  <span style={{ color: previewTheme.foreground }}>:</span>
-                  <span style={{ color: previewTheme.blue }}>~</span>
-                  <span style={{ color: previewTheme.foreground }}>$ </span>
-                  <span style={{ color: previewTheme.foreground }}>echo </span>
-                  <span style={{ color: previewTheme.yellow }}>
-                    &quot;preview&quot;
-                  </span>
-                </p>
 
                 <div className="mt-[0.35rem] flex justify-end gap-2">
                   <Button type="button" variant="outline" onClick={resetTerminal}>

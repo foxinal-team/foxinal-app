@@ -1,4 +1,18 @@
-export type TerminalThemeId = "system" | "dark" | "light" | "fox";
+export type TerminalThemeId =
+  | "system"
+  | "dark"
+  | "light"
+  | "fox"
+  | "dracula"
+  | "nord"
+  | "tokyo-night"
+  | "catppuccin"
+  | "gruvbox"
+  | "solarized-dark"
+  | "solarized-light"
+  | "one-dark"
+  | "monokai"
+  | "rose-pine";
 
 export type TerminalPrefs = {
   fontId: string;
@@ -12,6 +26,12 @@ export type TerminalFontOption = {
   id: string;
   label: string;
   value: string;
+};
+
+export type TerminalThemeOption = {
+  id: TerminalThemeId;
+  label: string;
+  blurb: string;
 };
 
 export const TERMINAL_FONTS: TerminalFontOption[] = [
@@ -52,11 +72,22 @@ export const TERMINAL_FONTS: TerminalFontOption[] = [
   },
 ];
 
-export const TERMINAL_THEMES: Array<{ id: TerminalThemeId; label: string }> = [
-  { id: "system", label: "Match app" },
-  { id: "dark", label: "Dark" },
-  { id: "light", label: "Light" },
-  { id: "fox", label: "Fox" },
+/** Built-ins first, then popular terminal / zsh-adjacent color schemes. */
+export const TERMINAL_THEMES: TerminalThemeOption[] = [
+  { id: "system", label: "Match app", blurb: "Follows Foxinal light/dark" },
+  { id: "dark", label: "Dark", blurb: "Clean foxinal dark" },
+  { id: "light", label: "Light", blurb: "Soft light canvas" },
+  { id: "fox", label: "Fox", blurb: "Warm fox-orange night" },
+  { id: "dracula", label: "Dracula", blurb: "Purple night classic" },
+  { id: "nord", label: "Nord", blurb: "Arctic north-bluish" },
+  { id: "tokyo-night", label: "Tokyo Night", blurb: "Downtown neon glow" },
+  { id: "catppuccin", label: "Catppuccin", blurb: "Soothing mocha pastels" },
+  { id: "gruvbox", label: "Gruvbox", blurb: "Retro warm groove" },
+  { id: "solarized-dark", label: "Solarized Dark", blurb: "Precision dark" },
+  { id: "solarized-light", label: "Solarized Light", blurb: "Precision light" },
+  { id: "one-dark", label: "One Dark", blurb: "Atom’s gray dusk" },
+  { id: "monokai", label: "Monokai", blurb: "Sublime classic" },
+  { id: "rose-pine", label: "Rosé Pine", blurb: "Soft pine & soho" },
 ];
 
 export const DEFAULT_TERMINAL_PREFS: TerminalPrefs = {
@@ -95,6 +126,13 @@ export function normalizeScrollback(raw: unknown): number {
   return Math.min(TERMINAL_SCROLLBACK_INPUT_MAX, rounded);
 }
 
+export function isTerminalThemeId(value: unknown): value is TerminalThemeId {
+  return (
+    typeof value === "string" &&
+    TERMINAL_THEMES.some((theme) => theme.id === value)
+  );
+}
+
 export function loadTerminalPrefs(): TerminalPrefs {
   try {
     const raw = localStorage.getItem(TERMINAL_PREFS_KEY);
@@ -113,13 +151,9 @@ export function loadTerminalPrefs(): TerminalPrefs {
             Math.max(TERMINAL_FONT_SIZE_MIN, Math.round(parsed.fontSize)),
           )
         : DEFAULT_TERMINAL_PREFS.fontSize;
-    const theme =
-      parsed.theme === "system" ||
-      parsed.theme === "dark" ||
-      parsed.theme === "light" ||
-      parsed.theme === "fox"
-        ? parsed.theme
-        : DEFAULT_TERMINAL_PREFS.theme;
+    const theme = isTerminalThemeId(parsed.theme)
+      ? parsed.theme
+      : DEFAULT_TERMINAL_PREFS.theme;
     const scrollback = normalizeScrollback(parsed.scrollback);
     return { fontId, fontSize, theme, scrollback };
   } catch {
@@ -201,12 +235,190 @@ const THEME_FOX: XtermTheme = {
   white: "#fff7ed",
 };
 
+const THEME_DRACULA: XtermTheme = {
+  background: "#282a36",
+  foreground: "#f8f8f2",
+  cursor: "#f8f8f2",
+  selectionBackground: "#44475a",
+  black: "#21222c",
+  red: "#ff5555",
+  green: "#50fa7b",
+  yellow: "#f1fa8c",
+  blue: "#bd93f9",
+  magenta: "#ff79c6",
+  cyan: "#8be9fd",
+  white: "#f8f8f2",
+};
+
+const THEME_NORD: XtermTheme = {
+  background: "#2e3440",
+  foreground: "#d8dee9",
+  cursor: "#d8dee9",
+  selectionBackground: "#434c5e",
+  black: "#3b4252",
+  red: "#bf616a",
+  green: "#a3be8c",
+  yellow: "#ebcb8b",
+  blue: "#81a1c1",
+  magenta: "#b48ead",
+  cyan: "#88c0d0",
+  white: "#e5e9f0",
+};
+
+const THEME_TOKYO_NIGHT: XtermTheme = {
+  background: "#1a1b26",
+  foreground: "#c0caf5",
+  cursor: "#c0caf5",
+  selectionBackground: "#33467c",
+  black: "#15161e",
+  red: "#f7768e",
+  green: "#9ece6a",
+  yellow: "#e0af68",
+  blue: "#7aa2f7",
+  magenta: "#bb9af7",
+  cyan: "#7dcfff",
+  white: "#a9b1d6",
+};
+
+const THEME_CATPPUCCIN: XtermTheme = {
+  background: "#1e1e2e",
+  foreground: "#cdd6f4",
+  cursor: "#f5e0dc",
+  selectionBackground: "#45475a",
+  black: "#45475a",
+  red: "#f38ba8",
+  green: "#a6e3a1",
+  yellow: "#f9e2af",
+  blue: "#89b4fa",
+  magenta: "#cba6f7",
+  cyan: "#94e2d5",
+  white: "#bac2de",
+};
+
+const THEME_GRUVBOX: XtermTheme = {
+  background: "#282828",
+  foreground: "#ebdbb2",
+  cursor: "#ebdbb2",
+  selectionBackground: "#504945",
+  black: "#282828",
+  red: "#cc241d",
+  green: "#98971a",
+  yellow: "#d79921",
+  blue: "#458588",
+  magenta: "#b16286",
+  cyan: "#689d6a",
+  white: "#a89984",
+};
+
+const THEME_SOLARIZED_DARK: XtermTheme = {
+  background: "#002b36",
+  foreground: "#839496",
+  cursor: "#93a1a1",
+  selectionBackground: "#073642",
+  black: "#073642",
+  red: "#dc322f",
+  green: "#859900",
+  yellow: "#b58900",
+  blue: "#268bd2",
+  magenta: "#d33682",
+  cyan: "#2aa198",
+  white: "#eee8d5",
+};
+
+const THEME_SOLARIZED_LIGHT: XtermTheme = {
+  background: "#fdf6e3",
+  foreground: "#657b83",
+  cursor: "#586e75",
+  selectionBackground: "#eee8d5",
+  black: "#073642",
+  red: "#dc322f",
+  green: "#859900",
+  yellow: "#b58900",
+  blue: "#268bd2",
+  magenta: "#d33682",
+  cyan: "#2aa198",
+  white: "#eee8d5",
+};
+
+const THEME_ONE_DARK: XtermTheme = {
+  background: "#282c34",
+  foreground: "#abb2bf",
+  cursor: "#528bff",
+  selectionBackground: "#3e4451",
+  black: "#282c34",
+  red: "#e06c75",
+  green: "#98c379",
+  yellow: "#e5c07b",
+  blue: "#61afef",
+  magenta: "#c678dd",
+  cyan: "#56b6c2",
+  white: "#abb2bf",
+};
+
+const THEME_MONOKAI: XtermTheme = {
+  background: "#272822",
+  foreground: "#f8f8f2",
+  cursor: "#f8f8f0",
+  selectionBackground: "#49483e",
+  black: "#272822",
+  red: "#f92672",
+  green: "#a6e22e",
+  yellow: "#f4bf75",
+  blue: "#66d9ef",
+  magenta: "#ae81ff",
+  cyan: "#a1efe4",
+  white: "#f8f8f2",
+};
+
+const THEME_ROSE_PINE: XtermTheme = {
+  background: "#191724",
+  foreground: "#e0def4",
+  cursor: "#ebbcba",
+  selectionBackground: "#26233a",
+  black: "#21202e",
+  red: "#eb6f92",
+  green: "#31748f",
+  yellow: "#f6c177",
+  blue: "#9ccfd8",
+  magenta: "#c4a7e7",
+  cyan: "#ebbcba",
+  white: "#e0def4",
+};
+
+const THEME_BY_ID: Record<Exclude<TerminalThemeId, "system">, XtermTheme> = {
+  dark: THEME_DARK,
+  light: THEME_LIGHT,
+  fox: THEME_FOX,
+  dracula: THEME_DRACULA,
+  nord: THEME_NORD,
+  "tokyo-night": THEME_TOKYO_NIGHT,
+  catppuccin: THEME_CATPPUCCIN,
+  gruvbox: THEME_GRUVBOX,
+  "solarized-dark": THEME_SOLARIZED_DARK,
+  "solarized-light": THEME_SOLARIZED_LIGHT,
+  "one-dark": THEME_ONE_DARK,
+  monokai: THEME_MONOKAI,
+  "rose-pine": THEME_ROSE_PINE,
+};
+
 export function resolveTerminalTheme(
   themeId: TerminalThemeId,
   appTheme: string,
 ): XtermTheme {
-  if (themeId === "fox") return THEME_FOX;
-  if (themeId === "dark") return THEME_DARK;
-  if (themeId === "light") return THEME_LIGHT;
-  return isAppDark(appTheme) ? THEME_DARK : THEME_LIGHT;
+  if (themeId === "system") {
+    return isAppDark(appTheme) ? THEME_DARK : THEME_LIGHT;
+  }
+  return THEME_BY_ID[themeId];
+}
+
+/** ANSI accent chips used in the settings theme picker. */
+export function themeAccentColors(theme: XtermTheme): string[] {
+  return [
+    theme.red,
+    theme.green,
+    theme.yellow,
+    theme.blue,
+    theme.magenta,
+    theme.cyan,
+  ];
 }

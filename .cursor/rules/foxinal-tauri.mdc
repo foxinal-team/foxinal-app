@@ -84,7 +84,7 @@ src/
 
 ## UI theme
 
-Clean liquid-glass system via Tailwind v4 tokens in `src/index.css` (Space Grotesk **bundled locally** via `@fontsource/space-grotesk` — no Google Fonts / offline-safe). UI is utilities + shadcn (no separate feature BEM stylesheet). Unlock uses brand header + card; dashboard uses segmented nav + session badge. Terminal font/size/theme/scrollback via Settings (`foxinal-terminal-prefs`; system mono stacks only). Scrollback default `40000`; `0` = max buffer (`1_000_000`).
+Clean liquid-glass system via Tailwind v4 tokens in `src/index.css` (Space Grotesk **bundled locally** via `@fontsource/space-grotesk` — no Google Fonts / offline-safe). UI is utilities + shadcn (no separate feature BEM stylesheet). Unlock uses brand header + card; dashboard uses segmented nav + session badge. Terminal font/size/theme/scrollback via Settings (`foxinal-terminal-prefs`; system mono stacks only). Themes: Match app / Dark / Light / Fox + Dracula, Nord, Tokyo Night, Catppuccin, Gruvbox, Solarized Dark/Light, One Dark, Monokai, Rosé Pine. Scrollback default `40000`; `0` = max buffer (`1_000_000`).
 
 ## Brand / icons
 
