@@ -142,6 +142,12 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Run Rust backend unit tests
+        run: pnpm test:rust
+
+      - name: Type check frontend
+        run: pnpm build
+
       - name: Build and upload to GitHub Release
         uses: tauri-apps/tauri-action@v1
         env:
