@@ -17,6 +17,7 @@ Read the document below that matches what you are working on:
 | Hosts, groups, import/export, data models                      | [`docs/inventory-and-data.md`](file:///Users/danial/Documents/Projects/foxinal/docs/inventory-and-data.md)     |
 | UI components, Tailwind CSS v4, themes, styling                | [`docs/ui-and-styling.md`](file:///Users/danial/Documents/Projects/foxinal/docs/ui-and-styling.md)             |
 | Build commands, dependencies, version bumping                  | [`docs/development-workflow.md`](file:///Users/danial/Documents/Projects/foxinal/docs/development-workflow.md) |
+| Feature roadmap, planned capabilities, milestone tracking      | [`docs/roadmap.md`](file:///Users/danial/Documents/Projects/foxinal/docs/roadmap.md)                           |
 
 ---
 
