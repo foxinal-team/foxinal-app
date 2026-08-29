@@ -27,6 +27,15 @@ Foxinal features a dual-pane file manager supporting side-by-side local filesyst
 - Non-blocking asynchronous transfers running in Rust background threads.
 - Transfer cancellation support via `cancel_sftp_transfer` using atomic cancellation tokens.
 
+### 3. Built-in Text & Code Editor
+- **CodeMirror 6 Engine**: Fast, native code editor supporting syntax highlighting for NGINX, Shell/Bash, YAML, Dockerfile, `.env`, JSON, Python, JS/TS, HTML, CSS, SQL, Rust, Markdown, and plain text.
+- **Editor Features**: Line numbers, active line highlight, line wrap toggle, find & replace (`Cmd/Ctrl + F`), bracket matching, auto-indentation, and live cursor position statistics.
+- **Direct Remote Save**: Stream edited file buffers directly back to the server or local disk with `Cmd/Ctrl + S`.
+- **Safety Safeguards**:
+  - Binary file detection prevents editing non-UTF8/binary files to avoid data corruption.
+  - Large file protection loads up to 5 MB with read-only warning.
+  - Unsaved changes confirmation dialog prevents accidental loss.
+
 ---
 
 ## Backend Commands Reference (`src-tauri/src/sftp.rs`)
@@ -37,12 +46,16 @@ Foxinal features a dual-pane file manager supporting side-by-side local filesyst
 | `fs_list_dir` | List files and directories at a local path |
 | `fs_mkdir` / `fs_create_file` | Create directories or empty files locally |
 | `fs_remove` / `fs_rename` | Delete or rename local filesystem entries |
+| `fs_read_text_file` | Read local text file with UTF-8 and binary detection |
+| `fs_write_text_file` | Write edited text file to local disk |
 | `sftp_connect` | Establish an authenticated SFTP session (key or password) |
 | `sftp_disconnect` | Terminate and clean up an active SFTP session |
 | `sftp_home_dir` | Resolve remote user's home directory (`.` or `pwd`) |
 | `sftp_list_dir` | List directory contents on remote server |
 | `sftp_mkdir` / `sftp_create_file` | Create remote directories or files |
 | `sftp_remove` / `sftp_rename` | Remove or rename remote files/directories |
+| `sftp_read_text_file` | Read remote file contents over SFTP |
+| `sftp_write_text_file` | Write edited text buffer back to remote SFTP destination |
 | `transfer_entries` | Execute batch file transfers with progress reporting |
 | `cancel_sftp_transfer` | Cancel ongoing transfer task |
 

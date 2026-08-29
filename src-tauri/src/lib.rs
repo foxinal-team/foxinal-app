@@ -10,8 +10,9 @@ mod sftp;
 
 use sftp::{
     cancel_sftp_transfer, fs_create_file, fs_home_dir, fs_list_dir, fs_mkdir, fs_parent_dir,
-    fs_remove, fs_rename, sftp_connect, sftp_create_file, sftp_disconnect, sftp_home_dir,
-    sftp_list_dir, sftp_mkdir, sftp_parent_dir, sftp_remove, sftp_rename, transfer_entries,
+    fs_read_text_file, fs_remove, fs_rename, fs_write_text_file, sftp_connect, sftp_create_file,
+    sftp_disconnect, sftp_home_dir, sftp_list_dir, sftp_mkdir, sftp_parent_dir,
+    sftp_read_text_file, sftp_remove, sftp_rename, sftp_write_text_file, transfer_entries,
     SftpState,
 };
 
@@ -360,6 +361,8 @@ pub fn run() {
             fs_create_file,
             fs_remove,
             fs_rename,
+            fs_read_text_file,
+            fs_write_text_file,
             sftp_connect,
             sftp_disconnect,
             sftp_home_dir,
@@ -369,6 +372,8 @@ pub fn run() {
             sftp_create_file,
             sftp_remove,
             sftp_rename,
+            sftp_read_text_file,
+            sftp_write_text_file,
             cancel_sftp_transfer,
             transfer_entries
         ])

@@ -63,3 +63,12 @@ export type DragPayload = {
   pane: "left" | "right";
   entry: FsEntry;
 };
+
+export type FileContentResult = {
+  content: string;
+  size: number;
+  isBinary: boolean;
+  lineEnding: "LF" | "CRLF" | string;
+  truncated: boolean;
+};
+

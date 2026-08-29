@@ -34,6 +34,7 @@ import {
   type PaneConnectStatus,
   type SftpPaneSide,
 } from "./SftpPane";
+import { SftpFileEditorModal } from "./editor/SftpFileEditorModal";
 import {
   SFTP_TRANSFER_PROGRESS_EVENT,
   type FsEntry,
@@ -45,6 +46,7 @@ import {
 
 type SftpViewProps = {
   items: InventoryItem[];
+  appTheme?: string;
   onBlockingDialogChange?: (open: boolean) => void;
 };
 
@@ -221,7 +223,11 @@ function TransferProgressCard({
   );
 }
 
-export function SftpView({ items, onBlockingDialogChange }: SftpViewProps) {
+export function SftpView({
+  items,
+  appTheme,
+  onBlockingDialogChange,
+}: SftpViewProps) {
   const [left, setLeft] = useState<PaneConnection>({ kind: "local" });
   const [right, setRight] = useState<PaneConnection>({ kind: "local" });
   const [leftPath, setLeftPath] = useState("");
@@ -236,6 +242,11 @@ export function SftpView({ items, onBlockingDialogChange }: SftpViewProps) {
   const [transfers, setTransfers] = useState<TransferUi[]>([]);
   const [leftDialogOpen, setLeftDialogOpen] = useState(false);
   const [rightDialogOpen, setRightDialogOpen] = useState(false);
+  const [activeEditor, setActiveEditor] = useState<{
+    entry: FsEntry;
+    connection: PaneConnection;
+    side: SftpPaneSide;
+  } | null>(null);
 
   const sessionsRef = useRef<Set<string>>(new Set());
   const pendingDragRef = useRef<PendingDrag | null>(null);
@@ -245,8 +256,10 @@ export function SftpView({ items, onBlockingDialogChange }: SftpViewProps) {
   dragUiRef.current = drag;
 
   useEffect(() => {
-    onBlockingDialogChange?.(leftDialogOpen || rightDialogOpen);
-  }, [leftDialogOpen, rightDialogOpen, onBlockingDialogChange]);
+    onBlockingDialogChange?.(
+      leftDialogOpen || rightDialogOpen || activeEditor !== null,
+    );
+  }, [leftDialogOpen, rightDialogOpen, activeEditor, onBlockingDialogChange]);
 
   useEffect(() => {
     const sessions = sessionsRef.current;
@@ -618,6 +631,9 @@ export function SftpView({ items, onBlockingDialogChange }: SftpViewProps) {
           onDragGrip={(entries, event) => beginEntryDrag("left", entries, event)}
           onStatus={setFeedback}
           onBlockingDialogChange={setLeftDialogOpen}
+          onOpenFile={(entry, connection) =>
+            setActiveEditor({ entry, connection, side: "left" })
+          }
         />
         <MemoSftpPane
           side="right"
@@ -643,6 +659,9 @@ export function SftpView({ items, onBlockingDialogChange }: SftpViewProps) {
           }
           onStatus={setFeedback}
           onBlockingDialogChange={setRightDialogOpen}
+          onOpenFile={(entry, connection) =>
+            setActiveEditor({ entry, connection, side: "right" })
+          }
         />
       </div>
 
@@ -673,6 +692,19 @@ export function SftpView({ items, onBlockingDialogChange }: SftpViewProps) {
           </span>
         </div>
       ) : null}
+
+      <SftpFileEditorModal
+        open={activeEditor !== null}
+        entry={activeEditor?.entry ?? null}
+        connection={activeEditor?.connection ?? left}
+        appTheme={appTheme}
+        onClose={() => setActiveEditor(null)}
+        onSaved={() => {
+          if (activeEditor) {
+            bumpRefresh(activeEditor.side);
+          }
+        }}
+      />
     </section>
   );
 }

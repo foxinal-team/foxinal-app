@@ -17,6 +17,7 @@ import {
   IconCheck,
   IconPencil,
   IconFolderOpen,
+  IconCode,
 } from "@tabler/icons-react";
 import {
   type MouseEvent as ReactMouseEvent,
@@ -94,6 +95,7 @@ type SftpPaneProps = {
   onDragGrip: (entries: FsEntry[], event: ReactPointerEvent) => void;
   onStatus: (message: string | null, error?: string | null) => void;
   onBlockingDialogChange?: (open: boolean) => void;
+  onOpenFile?: (entry: FsEntry, connection: PaneConnection) => void;
 };
 
 const iconSm = { size: 16, stroke: 1.75 } as const;
@@ -116,6 +118,7 @@ export function SftpPane({
   onDragGrip,
   onStatus,
   onBlockingDialogChange,
+  onOpenFile,
 }: SftpPaneProps) {
   const [entries, setEntries] = useState<FsEntry[]>([]);
   const [loading, setLoading] = useState(false);
@@ -242,6 +245,7 @@ export function SftpPane({
   async function openEntry(entry: FsEntry) {
     if (entry.kind !== "dir") {
       setSelected([entry.path]);
+      onOpenFile?.(entry, connection);
       return;
     }
     await loadPath(entry.path);
@@ -377,6 +381,14 @@ export function SftpPane({
       return;
     }
     const target = e.target as HTMLElement | null;
+    const parentRow = target?.closest<HTMLElement>("[data-sftp-parent]");
+    if (parentRow) {
+      flushSync(() => {
+        setContextTarget(null);
+        setSelected([".."]);
+      });
+      return;
+    }
     const row = target?.closest<HTMLElement>("[data-sftp-entry]");
     // Sync so the menu content matches this right-click immediately.
     flushSync(() => {
@@ -512,6 +524,12 @@ export function SftpPane({
   const overlayTitle =
     connectStatus?.phase === "listing" ? "Loading files" : "Connecting";
   const overlayHost = connectStatus?.host;
+
+  const isParentSelected = selected.includes("..");
+  const selectedEntry =
+    selected.length === 1
+      ? entries.find((e) => e.path === selected[0]) ?? null
+      : null;
 
   const showParentRow = canGoUp(path, connection.kind);
   const crumbs = useMemo(
@@ -681,7 +699,7 @@ export function SftpPane({
             className="size-8"
             title="Rename"
             aria-label="Rename selected"
-            disabled={showOverlay || selected.length !== 1}
+            disabled={showOverlay || !selectedEntry}
             onClick={requestRenameSelected}
           >
             <IconPencil {...iconSm} aria-hidden />
@@ -693,7 +711,7 @@ export function SftpPane({
             className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
             title="Delete"
             aria-label="Delete selected"
-            disabled={showOverlay || selected.length !== 1 || deleting}
+            disabled={showOverlay || !selectedEntry || deleting}
             onClick={requestDeleteSelected}
           >
             <IconTrash {...iconSm} aria-hidden />
@@ -769,6 +787,21 @@ export function SftpPane({
           </div>
         ) : null}
 
+        {!loading && (showParentRow || visible.length > 0) ? (
+          <div
+            className="grid grid-cols-[1.5rem_minmax(0,1fr)] items-center gap-0.5 border-b border-line/60 bg-surface-muted/30 px-1.5 py-1 text-[0.68rem] font-semibold tracking-wider text-ink-muted/70 uppercase select-none"
+            aria-hidden
+          >
+            <span />
+            <div className="grid grid-cols-[1.25rem_minmax(0,1fr)_4.5rem_5.5rem] items-center gap-2 px-1.5">
+              <span />
+              <span>Name</span>
+              <span className="text-right">Size</span>
+              <span className="text-right">Modified</span>
+            </div>
+          </div>
+        ) : null}
+
         <ContextMenu
           onOpenChange={(open) => {
             if (!open) setContextTarget(null);
@@ -796,7 +829,10 @@ export function SftpPane({
                     <div
                       role="listitem"
                       data-sftp-parent=""
-                      className="grid grid-cols-[1.5rem_minmax(0,1fr)] items-center gap-0.5 rounded-sm"
+                      className={cn(
+                        "grid grid-cols-[1.5rem_minmax(0,1fr)] items-center gap-0.5 rounded-sm",
+                        isParentSelected && "bg-fox/10"
+                      )}
                     >
                       <span className="size-6" aria-hidden />
                       <Button
@@ -804,9 +840,19 @@ export function SftpPane({
                         variant="ghost"
                         className="h-auto min-w-0 grid grid-cols-[1.25rem_minmax(0,1fr)_4.5rem_5.5rem] items-center gap-2 rounded-sm px-1.5 py-1.5 text-left text-ink shadow-none hover:bg-foreground/5"
                         disabled={loading}
-                        onClick={() => void goUp()}
+                        aria-label="Parent folder. Select with click, open with Enter"
+                        aria-pressed={isParentSelected}
+                        onClick={(e) =>
+                          toggleSelect("..", e.metaKey || e.ctrlKey)
+                        }
                         onDoubleClick={() => void goUp()}
-                        title="Go to parent folder"
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            void goUp();
+                          }
+                        }}
+                        title="Click to select · Enter or double-click to open"
                       >
                         <span
                           className="grid place-items-center text-fox"
@@ -817,7 +863,7 @@ export function SftpPane({
                         <span className="truncate text-[0.8125rem] font-semibold">
                           ..
                         </span>
-                        <span className="truncate text-[0.7rem] text-ink-muted">
+                        <span className="truncate text-right text-[0.7rem] text-ink-muted">
                           —
                         </span>
                         <span className="truncate text-right text-[0.7rem] text-ink-muted">
@@ -914,7 +960,7 @@ export function SftpPane({
                           <span className="truncate text-[0.8125rem] font-semibold">
                             {entry.name}
                           </span>
-                          <span className="truncate text-[0.7rem] tabular-nums text-ink-muted">
+                          <span className="truncate text-right text-[0.7rem] tabular-nums text-ink-muted">
                             {entry.sizeLabel ??
                               (entry.kind === "dir"
                                 ? "—"
@@ -942,7 +988,14 @@ export function SftpPane({
                     <IconFolderOpen size={16} stroke={1.75} aria-hidden />
                     Open
                   </ContextMenuItem>
-                ) : null}
+                ) : (
+                  <ContextMenuItem
+                    onSelect={() => onOpenFile?.(contextTarget, connection)}
+                  >
+                    <IconCode size={16} stroke={1.75} aria-hidden />
+                    Edit file
+                  </ContextMenuItem>
+                )}
                 <ContextMenuItem
                   onSelect={() => setRenameTarget(contextTarget)}
                 >

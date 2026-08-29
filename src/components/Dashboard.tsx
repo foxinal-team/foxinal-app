@@ -646,23 +646,36 @@ export function Dashboard({
           </nav>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="order-last sm:order-none flex w-full sm:w-auto flex-1 max-w-sm items-center">
           <Button
             type="button"
             variant="outline"
-            className="h-[var(--control-h)] gap-2 bg-[var(--toggle-bg)] px-3 text-ink-muted hover:text-ink backdrop-blur-[var(--blur-sm)]"
+            className="group h-[var(--control-h)] w-full justify-between gap-2 rounded-md border-line bg-[var(--field-bg)] px-3 text-xs text-ink-muted shadow-none hover:border-fox/40 hover:bg-surface hover:text-ink transition-all"
             aria-label="Command Palette"
-            title="Quick Command Palette (Cmd+K)"
+            title="Command Palette (Cmd+K)"
             onClick={() => setCommandPaletteOpen(true)}
           >
-            <IconSearch size={16} stroke={1.75} aria-hidden />
-            <kbd className="rounded border border-line bg-surface px-1.5 py-0.5 font-mono text-[0.65rem] font-semibold text-ink-muted">
+            <span className="flex min-w-0 items-center gap-2 truncate">
+              <IconSearch
+                size={15}
+                stroke={1.75}
+                className="shrink-0 text-ink-muted group-hover:text-fox transition-colors"
+                aria-hidden
+              />
+              <span className="truncate text-[0.78rem] text-ink-muted group-hover:text-ink">
+                Search or jump to…
+              </span>
+            </span>
+            <kbd className="shrink-0 rounded border border-line bg-surface px-1.5 py-0.5 font-mono text-[0.65rem] font-semibold text-ink-muted group-hover:border-fox/30 group-hover:text-ink transition-colors">
               {typeof navigator !== "undefined" &&
               /mac|iphone|ipad|ipod/i.test(navigator.platform)
                 ? "⌘K"
                 : "Ctrl K"}
             </kbd>
           </Button>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
           <ThemeToggle
             theme={theme}
             label={themeLabel}
@@ -1092,7 +1105,7 @@ export function Dashboard({
                   <IconFolders size={24} stroke={1.5} />
                 </span>
                 <p className="m-0 text-base font-bold text-ink">No connections yet</p>
-                <p>Add a new group or host to get started.</p>
+                <p className="m-0 text-xs text-ink-muted">Add a new group or host to get started.</p>
                 <div className="mt-2 flex flex-wrap justify-center gap-2">
                   <Button
                     type="button"
@@ -1119,7 +1132,7 @@ export function Dashboard({
                   <IconSearch size={24} stroke={1.5} />
                 </span>
                 <p className="m-0 text-base font-bold text-ink">No matches</p>
-                <p>Try a different search for “{searchQuery.trim()}”.</p>
+                <p className="m-0 text-xs text-ink-muted">Try a different search for “{searchQuery.trim()}”.</p>
               </div>
             ) : null}
 
@@ -1452,6 +1465,7 @@ export function Dashboard({
         >
           <SftpView
             items={items}
+            appTheme={theme}
             onBlockingDialogChange={setSftpDialogOpen}
           />
         </div>

@@ -58,7 +58,7 @@
 | `[x]` | **Dual-Pane Local/Remote Explorer** | Dual-pane file manager with real-time transfer progress, cancellation, file/folder creation, and deletion. | v1.1 |
 | `[x]` | **Pointer Drag-and-Drop Transfers** | Drag files and folders across local and remote panes with live ghost preview and drop targets. | v1.1 |
 | `[x]` | **Single-Line Smooth Breadcrumb Nav** | Horizontal auto-scrolling breadcrumbs preventing header overflow in deep directories. | v1.1 |
-| `[ ]` | **Built-in Quick Text & Code Editor** | View and edit remote configuration files (`nginx.conf`, `.env`, YAML) directly in-app with syntax highlighting. | v1.2 |
+| `[x]` | **Built-in Quick Text & Code Editor** | View and edit remote configuration files (`nginx.conf`, `.env`, YAML) directly in-app with syntax highlighting. | v1.2 |
 | `[ ]` | **Desktop OS Drag-and-Drop** | Drag files directly between native Finder / File Explorer and Foxinal SFTP panes. | v1.3 |
 | `[ ]` | **Permissions & Ownership Modal (`chmod`/`chown`)** | Right-click inspector to modify octal permissions (`755`, `644`, `600`) and remote file ownership. | v1.2 |
 | `[ ]` | **File Diff & Comparison View** | Side-by-side visual diff comparison between local and remote files before overwriting. | v1.4 |

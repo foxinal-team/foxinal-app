@@ -100,6 +100,34 @@ pub struct TransferProgress {
     pub done: bool,
 }
 
+#[derive(Clone, Serialize, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct FileContentResult {
+    pub content: String,
+    pub size: u64,
+    pub is_binary: bool,
+    pub line_ending: String,
+    pub truncated: bool,
+}
+
+pub fn detect_is_binary(bytes: &[u8]) -> bool {
+    let check_len = bytes.len().min(8192);
+    let slice = &bytes[..check_len];
+    if slice.contains(&0) {
+        return true;
+    }
+    std::str::from_utf8(bytes).is_err()
+}
+
+pub fn detect_line_ending(text: &str) -> String {
+    if text.contains("\r\n") {
+        "CRLF".to_string()
+    } else {
+        "LF".to_string()
+    }
+}
+
+
 struct Progress {
     app: AppHandle,
     transfer_id: String,
@@ -605,6 +633,86 @@ pub async fn fs_rename(from: String, to: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub async fn fs_read_text_file(
+    path: String,
+    max_bytes: Option<usize>,
+) -> Result<FileContentResult, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let file_path = PathBuf::from(&path);
+        if !file_path.is_file() {
+            return Err("Target path is not a file.".into());
+        }
+        let metadata =
+            fs::metadata(&file_path).map_err(|e| format!("Failed to read metadata: {e}"))?;
+        let size = metadata.len();
+        let limit = max_bytes.unwrap_or(5 * 1024 * 1024);
+
+        let mut file =
+            File::open(&file_path).map_err(|e| format!("Failed to open file: {e}"))?;
+        if size > limit as u64 {
+            let mut buf = vec![0u8; limit];
+            let n = file
+                .read(&mut buf)
+                .map_err(|e| format!("Failed to read file: {e}"))?;
+            buf.truncate(n);
+            let is_binary = detect_is_binary(&buf);
+            let content = if is_binary {
+                String::new()
+            } else {
+                String::from_utf8_lossy(&buf).to_string()
+            };
+            let line_ending = detect_line_ending(&content);
+            Ok(FileContentResult {
+                content,
+                size,
+                is_binary,
+                line_ending,
+                truncated: true,
+            })
+        } else {
+            let mut buf = Vec::new();
+            file.read_to_end(&mut buf)
+                .map_err(|e| format!("Failed to read file: {e}"))?;
+            let is_binary = detect_is_binary(&buf);
+            let content = if is_binary {
+                String::new()
+            } else {
+                String::from_utf8(buf)
+                    .map_err(|_| "File contains non-UTF-8 characters.".to_string())?
+            };
+            let line_ending = detect_line_ending(&content);
+            Ok(FileContentResult {
+                content,
+                size,
+                is_binary,
+                line_ending,
+                truncated: false,
+            })
+        }
+    })
+    .await
+    .map_err(|e| format!("Read text file task failed: {e}"))?
+}
+
+#[tauri::command]
+pub async fn fs_write_text_file(path: String, contents: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let file_path = PathBuf::from(&path);
+        if let Some(parent) = file_path.parent() {
+            if !parent.as_os_str().is_empty() && !parent.exists() {
+                fs::create_dir_all(parent)
+                    .map_err(|e| format!("Failed to create parent directory: {e}"))?;
+            }
+        }
+        fs::write(&file_path, contents.as_bytes())
+            .map_err(|e| format!("Failed to save file: {e}"))?;
+        Ok(())
+    })
+    .await
+    .map_err(|e| format!("Write text file task failed: {e}"))?
+}
+
+#[tauri::command]
 pub async fn sftp_connect(
     state: State<'_, SftpState>,
     address: String,
@@ -955,6 +1063,140 @@ pub async fn sftp_rename(
     let (result, live) = joined;
     put_session(&state, sid, live)?;
     result
+}
+
+#[tauri::command]
+pub async fn sftp_read_text_file(
+    state: State<'_, SftpState>,
+    session_id: String,
+    path: String,
+    max_bytes: Option<usize>,
+) -> Result<FileContentResult, String> {
+    let live = take_session(&state, &session_id)?;
+    let sid = session_id.clone();
+    let joined = tauri::async_runtime::spawn_blocking(move || {
+        let result = read_text_remote(&live.session, &path, max_bytes);
+        (result, live)
+    })
+    .await
+    .map_err(|e| format!("SFTP read task failed: {e}"))?;
+
+    let (result, live) = joined;
+    put_session(&state, sid, live)?;
+    result
+}
+
+fn read_text_remote(
+    session: &Session,
+    path: &str,
+    max_bytes: Option<usize>,
+) -> Result<FileContentResult, String> {
+    let path = path.trim();
+    if path.is_empty() || path == "/" {
+        return Err("Invalid remote file path.".into());
+    }
+    assert_safe_remote_delete(path).map_err(|_| "Invalid remote file path.".to_string())?;
+
+    let sftp = session
+        .sftp()
+        .map_err(|e| format!("SFTP open failed: {e}"))?;
+    let mut file = sftp
+        .open(Path::new(path))
+        .map_err(|e| format!("Failed to open remote file: {e}"))?;
+    let stat = file
+        .stat()
+        .map_err(|e| format!("Failed to stat remote file: {e}"))?;
+    let size = stat.size.unwrap_or(0);
+    let limit = max_bytes.unwrap_or(5 * 1024 * 1024);
+
+    if size > limit as u64 {
+        let mut buf = Vec::with_capacity(limit);
+        let mut chunk = [0u8; 64 * 1024];
+        while buf.len() < limit {
+            let to_read = (limit - buf.len()).min(chunk.len());
+            let n = file
+                .read(&mut chunk[..to_read])
+                .map_err(|e| format!("Failed to read remote file: {e}"))?;
+            if n == 0 {
+                break;
+            }
+            buf.extend_from_slice(&chunk[..n]);
+        }
+        let is_binary = detect_is_binary(&buf);
+        let content = if is_binary {
+            String::new()
+        } else {
+            String::from_utf8_lossy(&buf).to_string()
+        };
+        let line_ending = detect_line_ending(&content);
+        Ok(FileContentResult {
+            content,
+            size,
+            is_binary,
+            line_ending,
+            truncated: true,
+        })
+    } else {
+        let mut buf = Vec::new();
+        file.read_to_end(&mut buf)
+            .map_err(|e| format!("Failed to read remote file: {e}"))?;
+        let is_binary = detect_is_binary(&buf);
+        let content = if is_binary {
+            String::new()
+        } else {
+            String::from_utf8(buf)
+                .map_err(|_| "File contains invalid UTF-8 characters.".to_string())?
+        };
+        let line_ending = detect_line_ending(&content);
+        Ok(FileContentResult {
+            content,
+            size,
+            is_binary,
+            line_ending,
+            truncated: false,
+        })
+    }
+}
+
+#[tauri::command]
+pub async fn sftp_write_text_file(
+    state: State<'_, SftpState>,
+    session_id: String,
+    path: String,
+    contents: String,
+) -> Result<(), String> {
+    let live = take_session(&state, &session_id)?;
+    let sid = session_id.clone();
+    let joined = tauri::async_runtime::spawn_blocking(move || {
+        let result = write_text_remote(&live.session, &path, &contents);
+        (result, live)
+    })
+    .await
+    .map_err(|e| format!("SFTP write task failed: {e}"))?;
+
+    let (result, live) = joined;
+    put_session(&state, sid, live)?;
+    result
+}
+
+fn write_text_remote(session: &Session, path: &str, contents: &str) -> Result<(), String> {
+    let path = path.trim();
+    if path.is_empty() || path == "/" {
+        return Err("Invalid remote file path.".into());
+    }
+    assert_safe_remote_delete(path).map_err(|_| "Invalid remote file path.".to_string())?;
+
+    let sftp = session
+        .sftp()
+        .map_err(|e| format!("SFTP open failed: {e}"))?;
+    let mut file = sftp
+        .create(Path::new(path))
+        .map_err(|e| format!("Failed to open remote file for writing: {e}"))?;
+    file.write_all(contents.as_bytes())
+        .map_err(|e| format!("Failed to write to remote file: {e}"))?;
+    file.flush()
+        .map_err(|e| format!("Failed to flush remote file: {e}"))?;
+    Ok(())
 }
 
 fn remove_remote_via_exec(session: &Session, path: &str) -> Result<(), String> {
@@ -1896,5 +2138,51 @@ mod tests {
         assert_eq!(entries[2].name, "apple.txt");
         assert_eq!(entries[3].name, "zebra.txt");
     }
+
+    #[test]
+    fn test_detect_is_binary() {
+        let text_bytes = b"Hello, world!\nLine 2 with utf8: \xc3\xa9\n";
+        assert!(!detect_is_binary(text_bytes));
+
+        let binary_null = b"Hello\x00World";
+        assert!(detect_is_binary(binary_null));
+
+        let invalid_utf8 = b"Hello \xff\xfe World";
+        assert!(detect_is_binary(invalid_utf8));
+    }
+
+    #[test]
+    fn test_detect_line_ending() {
+        assert_eq!(detect_line_ending("line 1\r\nline 2"), "CRLF");
+        assert_eq!(detect_line_ending("line 1\nline 2"), "LF");
+        assert_eq!(detect_line_ending("single line"), "LF");
+    }
+
+    #[test]
+    fn test_fs_read_write_text_file() {
+        tauri::async_runtime::block_on(async {
+            let temp_dir = std::env::temp_dir().join(format!("foxinal-editor-test-{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+            let _ = fs::create_dir_all(&temp_dir);
+            let test_file = temp_dir.join("test_config.env");
+
+            let content_to_write = "PORT=8080\nHOST=0.0.0.0\n# comment\n";
+            fs_write_text_file(test_file.to_string_lossy().to_string(), content_to_write.to_string())
+                .await
+                .expect("fs_write_text_file should succeed");
+
+            let read_result = fs_read_text_file(test_file.to_string_lossy().to_string(), None)
+                .await
+                .expect("fs_read_text_file should succeed");
+
+            assert_eq!(read_result.content, content_to_write);
+            assert!(!read_result.is_binary);
+            assert_eq!(read_result.line_ending, "LF");
+            assert!(!read_result.truncated);
+            assert_eq!(read_result.size, content_to_write.len() as u64);
+
+            let _ = fs::remove_dir_all(&temp_dir);
+        });
+    }
 }
+
 

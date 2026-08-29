@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { HostItem } from "@/inventory/types";
-import type { FsEntry, TransferResult } from "./types";
+import type { FileContentResult, FsEntry, TransferResult } from "./types";
 import { TRANSFER_CANCELLED_MESSAGE } from "./types";
 
 function asEntries(raw: FsEntry[]): FsEntry[] {
@@ -55,6 +55,20 @@ export async function fsRemove(path: string): Promise<void> {
 
 export async function fsRename(from: string, to: string): Promise<void> {
   await invoke("fs_rename", { from, to });
+}
+
+export async function fsReadTextFile(
+  path: string,
+  maxBytes?: number,
+): Promise<FileContentResult> {
+  return invoke<FileContentResult>("fs_read_text_file", { path, maxBytes });
+}
+
+export async function fsWriteTextFile(
+  path: string,
+  contents: string,
+): Promise<void> {
+  await invoke("fs_write_text_file", { path, contents });
 }
 
 export async function sftpConnect(host: HostItem): Promise<SftpConnectResult> {
@@ -117,6 +131,26 @@ export async function sftpRename(
   to: string,
 ): Promise<void> {
   await invoke("sftp_rename", { sessionId, from, to });
+}
+
+export async function sftpReadTextFile(
+  sessionId: string,
+  path: string,
+  maxBytes?: number,
+): Promise<FileContentResult> {
+  return invoke<FileContentResult>("sftp_read_text_file", {
+    sessionId,
+    path,
+    maxBytes,
+  });
+}
+
+export async function sftpWriteTextFile(
+  sessionId: string,
+  path: string,
+  contents: string,
+): Promise<void> {
+  await invoke("sftp_write_text_file", { sessionId, path, contents });
 }
 
 export async function transferEntries(input: {
