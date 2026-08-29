@@ -28,6 +28,14 @@ pnpm tauri dev
 pnpm dev
 ```
 
+### Testing
+```bash
+# Run Rust backend unit tests
+pnpm test:rust
+# or directly via cargo:
+cargo test --manifest-path src-tauri/Cargo.toml
+```
+
 ### Building & Packaging
 ```bash
 # Type check and build web assets

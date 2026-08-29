@@ -375,3 +375,112 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_greet() {
+        assert_eq!(
+            greet("Foxinal"),
+            "Hello, Foxinal! You've been greeted from Rust!"
+        );
+    }
+
+    #[test]
+    fn test_default_shell_not_empty() {
+        let shell = default_shell();
+        assert!(!shell.trim().is_empty());
+    }
+
+    #[test]
+    fn test_global_known_hosts_null() {
+        let null_path = global_known_hosts_null();
+        if cfg!(windows) {
+            assert_eq!(null_path, "NUL");
+        } else {
+            assert_eq!(null_path, "/dev/null");
+        }
+    }
+
+    #[test]
+    fn test_known_hosts_host_patterns_port_22() {
+        let patterns = known_hosts_host_patterns("192.168.1.10", 22);
+        assert!(patterns.contains(&"192.168.1.10".to_string()));
+        assert!(patterns.contains(&"[192.168.1.10]:22".to_string()));
+        assert!(patterns.contains(&"[192.168.1.10]".to_string()));
+    }
+
+    #[test]
+    fn test_known_hosts_host_patterns_custom_port() {
+        let patterns = known_hosts_host_patterns("example.com", 2222);
+        assert!(patterns.contains(&"example.com".to_string()));
+        assert!(patterns.contains(&"[example.com]:2222".to_string()));
+        assert!(!patterns.contains(&"[example.com]".to_string()));
+    }
+
+    #[test]
+    fn test_uuid_like_length_and_hex() {
+        let u1 = uuid_like();
+        let u2 = uuid_like();
+        assert!(!u1.is_empty());
+        assert!(u1.chars().all(|c| c.is_ascii_hexdigit()));
+        assert!(!u2.is_empty());
+    }
+
+    #[test]
+    fn test_unique_download_path_no_conflict() {
+        let temp_dir = std::env::temp_dir().join(format!("foxinal-test-{}", uuid_like()));
+        let _ = fs::create_dir_all(&temp_dir);
+
+        let path = unique_download_path(&temp_dir, "export.json");
+        assert_eq!(path.file_name().unwrap(), "export.json");
+
+        let _ = fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_unique_download_path_with_conflict() {
+        let temp_dir = std::env::temp_dir().join(format!("foxinal-test-{}", uuid_like()));
+        let _ = fs::create_dir_all(&temp_dir);
+
+        // Pre-create original file
+        let original = temp_dir.join("export.json");
+        let _ = fs::write(&original, "{}");
+
+        let path = unique_download_path(&temp_dir, "export.json");
+        assert_eq!(path.file_name().unwrap(), "export (1).json");
+
+        let _ = fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_write_and_cleanup_temp_private_key() {
+        let key_data = "-----BEGIN OPENSSH PRIVATE KEY-----\ntest\n-----END OPENSSH PRIVATE KEY-----";
+        let path = write_temp_private_key(key_data).expect("should write temp key");
+        assert!(path.exists());
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let metadata = fs::metadata(&path).unwrap();
+            let mode = metadata.permissions().mode() & 0o777;
+            assert_eq!(mode, 0o600, "Unix private key must be permission 0600");
+        }
+
+        let read_back = fs::read_to_string(&path).unwrap();
+        assert!(read_back.contains("BEGIN OPENSSH PRIVATE KEY"));
+
+        let cleanup_res = cleanup_ssh_temp(vec![path.to_string_lossy().to_string()]);
+        assert!(cleanup_res.is_ok());
+        assert!(!path.exists(), "temp key must be deleted after cleanup");
+    }
+
+    #[test]
+    fn test_read_text_file_validation() {
+        assert!(read_text_file("".into()).is_err());
+        assert!(read_text_file("/non/existent/path/foxinal.json".into()).is_err());
+    }
+}
+

@@ -11,7 +11,8 @@
     "version:set": "node scripts/set-version.mjs",
     "version:patch": "node scripts/set-version.mjs --bump patch",
     "version:minor": "node scripts/set-version.mjs --bump minor",
-    "version:major": "node scripts/set-version.mjs --bump major"
+    "version:major": "node scripts/set-version.mjs --bump major",
+    "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml"
   },
   "dependencies": {
     "@fontsource/space-grotesk": "^5.3.0",

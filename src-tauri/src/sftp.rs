@@ -1774,3 +1774,127 @@ pub async fn transfer_entries(
     end_transfer_cancel(&state, &tid);
     result
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_format_bytes_label() {
+        assert_eq!(format_bytes_label(0), "0 B");
+        assert_eq!(format_bytes_label(512), "512 B");
+        assert_eq!(format_bytes_label(1024), "1.0 KB");
+        assert_eq!(format_bytes_label(1536), "1.5 KB");
+        assert_eq!(format_bytes_label(1024 * 1024), "1.0 MB");
+        assert_eq!(format_bytes_label(1024 * 1024 * 1024), "1.00 GB");
+        assert_eq!(format_bytes_label(5 * 1024 * 1024 * 1024), "5.00 GB");
+    }
+
+    #[test]
+    fn test_is_hidden_name() {
+        assert!(is_hidden_name(".bashrc"));
+        assert!(is_hidden_name(".config"));
+        assert!(!is_hidden_name("."));
+        assert!(!is_hidden_name(".."));
+        assert!(!is_hidden_name("document.pdf"));
+        assert!(!is_hidden_name("folder"));
+    }
+
+    #[test]
+    fn test_format_modified_label() {
+        assert_eq!(format_modified_label(None), "—");
+        // 0 secs = 1970-01-01 00:00 UTC
+        assert_eq!(format_modified_label(Some(0)), "1970-01-01 00:00");
+        // 1700000000 = 2023-11-14 22:13 UTC
+        assert_eq!(format_modified_label(Some(1700000000)), "2023-11-14 22:13");
+    }
+
+    #[test]
+    fn test_join_remote() {
+        assert_eq!(join_remote("/var", "log"), "/var/log");
+        assert_eq!(join_remote("/var/", "log"), "/var/log");
+        assert_eq!(join_remote("/", "etc"), "/etc");
+        assert_eq!(join_remote("", "root"), "/root");
+    }
+
+    #[test]
+    fn test_parent_remote() {
+        assert_eq!(parent_remote("/var/log/nginx"), "/var/log");
+        assert_eq!(parent_remote("/var/log"), "/var");
+        assert_eq!(parent_remote("/var"), "/");
+        assert_eq!(parent_remote("/"), "/");
+        assert_eq!(parent_remote(""), "/");
+    }
+
+    #[test]
+    fn test_shell_quote() {
+        assert_eq!(shell_quote("simple"), "'simple'");
+        assert_eq!(shell_quote("file with spaces.txt"), "'file with spaces.txt'");
+        assert_eq!(shell_quote("it's"), "'it'\\''s'");
+    }
+
+    #[test]
+    fn test_assert_safe_remote_delete() {
+        assert!(assert_safe_remote_delete("/").is_err());
+        assert!(assert_safe_remote_delete("  ").is_err());
+        assert!(assert_safe_remote_delete(".").is_err());
+        assert!(assert_safe_remote_delete("..").is_err());
+        assert!(assert_safe_remote_delete("/tmp/test_dir").is_ok());
+        assert!(assert_safe_remote_delete("/home/user/file.txt").is_ok());
+    }
+
+    #[test]
+    fn test_sort_entries() {
+        let mut entries = vec![
+            FsEntry {
+                name: "zebra.txt".into(),
+                path: "/zebra.txt".into(),
+                kind: "file".into(),
+                size: 100,
+                modified: None,
+                hidden: false,
+                size_label: "100 B".into(),
+                modified_label: "—".into(),
+            },
+            FsEntry {
+                name: "alpha_dir".into(),
+                path: "/alpha_dir".into(),
+                kind: "dir".into(),
+                size: 0,
+                modified: None,
+                hidden: false,
+                size_label: "—".into(),
+                modified_label: "—".into(),
+            },
+            FsEntry {
+                name: "apple.txt".into(),
+                path: "/apple.txt".into(),
+                kind: "file".into(),
+                size: 50,
+                modified: None,
+                hidden: false,
+                size_label: "50 B".into(),
+                modified_label: "—".into(),
+            },
+            FsEntry {
+                name: "beta_dir".into(),
+                path: "/beta_dir".into(),
+                kind: "dir".into(),
+                size: 0,
+                modified: None,
+                hidden: false,
+                size_label: "—".into(),
+                modified_label: "—".into(),
+            },
+        ];
+
+        sort_entries(&mut entries);
+
+        // Directories first (alpha_dir, beta_dir), then files (apple.txt, zebra.txt)
+        assert_eq!(entries[0].name, "alpha_dir");
+        assert_eq!(entries[1].name, "beta_dir");
+        assert_eq!(entries[2].name, "apple.txt");
+        assert_eq!(entries[3].name, "zebra.txt");
+    }
+}
+
