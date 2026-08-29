@@ -395,7 +395,6 @@
 /* Foxinal toasts — glass panel, accent rail, readable hierarchy */
 .fox-toast {
   --width: min(100vw - 2rem, 22.5rem) !important;
-  position: relative !important;
   width: var(--width) !important;
   max-width: var(--width) !important;
   display: flex !important;
@@ -424,6 +423,17 @@
   border-radius: 999px;
   background: var(--fox);
   box-shadow: 0 0 12px var(--glow-fox);
+  transition: opacity 300ms ease;
+}
+
+/* Hide accent rail and close button on collapsed background toasts in the stack */
+[data-sonner-toast][data-expanded="false"][data-front="false"]::before {
+  opacity: 0;
+}
+
+[data-sonner-toast][data-expanded="false"][data-front="false"] .fox-toast-close {
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
 
 .fox-toast-success::before {
@@ -548,6 +558,24 @@
   background: color-mix(in srgb, var(--fox) 22%, transparent) !important;
 }
 
+.fox-toast-cancel {
+  margin: 0.15rem 0 0 0.5rem !important;
+  height: 1.85rem !important;
+  padding: 0 0.7rem !important;
+  border: 1px solid var(--line) !important;
+  border-radius: calc(var(--radius) * 0.55) !important;
+  background: color-mix(in srgb, var(--surface-solid) 75%, transparent) !important;
+  color: var(--ink-muted) !important;
+  font-size: 0.72rem !important;
+  font-weight: 600 !important;
+  white-space: nowrap;
+}
+
+.fox-toast-cancel:hover {
+  background: color-mix(in srgb, var(--surface-solid) 95%, transparent) !important;
+  color: var(--ink) !important;
+}
+
 .fox-toast-close {
   position: absolute !important;
   top: 0.45rem !important;
@@ -560,16 +588,13 @@
   border-radius: calc(var(--radius) * 0.45) !important;
   background: color-mix(in srgb, var(--surface-solid) 80%, transparent) !important;
   color: var(--ink-muted) !important;
-  opacity: 1 !important;
+  opacity: 1;
+  transition: background 200ms ease, border-color 200ms ease, color 200ms ease, opacity 200ms ease;
 }
 
 .fox-toast-close:hover {
   color: var(--ink) !important;
   background: color-mix(in srgb, var(--fox) 12%, transparent) !important;
   border-color: color-mix(in srgb, var(--fox) 30%, var(--line)) !important;
-}
-
-.toaster [data-sonner-toast][data-expanded="false"] {
-  opacity: 1;
 }
 
