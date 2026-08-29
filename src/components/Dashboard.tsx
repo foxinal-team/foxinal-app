@@ -1094,8 +1094,8 @@ export function Dashboard({
               <div
                 key={group.id}
                 className={cn(
-                  "flex cursor-pointer gap-0.5 rounded-md border border-line bg-surface shadow-(--shadow-sm) backdrop-blur-[var(--blur-sm)]",
-                  layout === "grid" ? "flex-col items-stretch" : "items-center",
+                  "group/card flex cursor-pointer rounded-md border border-line bg-surface shadow-(--shadow-sm) backdrop-blur-[var(--blur-sm)] transition-[border-color,background-color,box-shadow] hover:border-fox/35 hover:bg-surface/90",
+                  layout === "grid" ? "flex-col items-stretch p-2" : "items-center gap-0.5 p-1",
                   isDragging && "opacity-45",
                   isDropTarget && "border-fox/50 bg-fox/8 outline outline-dashed outline-fox/40"
                 )}
@@ -1110,60 +1110,121 @@ export function Dashboard({
                   openGroup(group.id);
                 }}
               >
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  className="size-8 shrink-0 cursor-grab text-ink-muted active:cursor-grabbing"
-                  title="Drag to move"
-                  aria-label={`Drag ${group.name} to move`}
-                  tabIndex={-1}
-                  data-fox-card-action=""
-                  onPointerDown={(e) => beginPointerDrag(e, group.id)}
-                  onDoubleClick={(e) => e.stopPropagation()}
-                >
-                  <IconGripVertical {...actionIcon} aria-hidden />
-                </Button>
-                <div className="flex min-w-0 flex-1 items-center gap-2.5 px-1 py-2 text-left text-ink">
-                  <span className="grid size-9 shrink-0 place-items-center rounded-sm bg-leaf/12 text-[var(--leaf)]" aria-hidden>
-                    <IconFolder {...typeIcon} />
-                  </span>
-                  <span className="flex min-w-0 flex-1 flex-col">
-                    <span className="text-[0.68rem] font-bold tracking-wide text-ink-muted uppercase">Group</span>
-                    <span className="truncate text-[0.9rem] font-bold text-ink">{group.name}</span>
-                    {location ? (
-                      <span className="truncate text-[0.75rem] text-ink-muted">{location}</span>
-                    ) : null}
-                  </span>
-                </div>
-                <div
-                  className="flex shrink-0 items-center gap-0.5"
-                  data-fox-card-action=""
-                  onDoubleClick={(e) => e.stopPropagation()}
-                >
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    className="size-8"
-                    aria-label={`Rename ${group.name}`}
-                    title="Rename"
-                    onClick={() => setRenameGroupTarget(group)}
-                  >
-                    <IconPencil {...actionIcon} aria-hidden />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                    aria-label={`Delete ${group.name}`}
-                    title="Delete"
-                    onClick={() => setDeleteTarget(group)}
-                  >
-                    <IconTrash {...actionIcon} aria-hidden />
-                  </Button>
-                </div>
+                {layout === "grid" ? (
+                  <>
+                    <div
+                      className="flex items-center justify-between gap-1"
+                      data-fox-card-action=""
+                      onDoubleClick={(e) => e.stopPropagation()}
+                    >
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        className="size-7 shrink-0 cursor-grab text-ink-muted active:cursor-grabbing"
+                        title="Drag to move"
+                        aria-label={`Drag ${group.name} to move`}
+                        tabIndex={-1}
+                        onPointerDown={(e) => beginPointerDrag(e, group.id)}
+                      >
+                        <IconGripVertical {...actionIcon} aria-hidden />
+                      </Button>
+                      <div className="flex shrink-0 items-center gap-0.5">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          className="size-7"
+                          aria-label={`Rename ${group.name}`}
+                          title="Rename"
+                          onClick={() => setRenameGroupTarget(group)}
+                        >
+                          <IconPencil {...actionIcon} aria-hidden />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          className="size-7 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                          aria-label={`Delete ${group.name}`}
+                          title="Delete"
+                          onClick={() => setDeleteTarget(group)}
+                        >
+                          <IconTrash {...actionIcon} aria-hidden />
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="flex min-w-0 flex-1 items-center gap-2.5 pt-1.5 pb-0.5 text-left text-ink">
+                      <span className="grid size-9 shrink-0 place-items-center rounded-sm bg-leaf/12 text-[var(--leaf)]" aria-hidden>
+                        <IconFolder {...typeIcon} />
+                      </span>
+                      <span className="flex min-w-0 flex-1 flex-col">
+                        <span className="text-[0.68rem] font-bold tracking-wide text-ink-muted uppercase">Group</span>
+                        <span className="truncate text-[0.9rem] font-bold text-ink">{group.name}</span>
+                        {location ? (
+                          <span className="truncate text-[0.75rem] text-ink-muted">{location}</span>
+                        ) : null}
+                      </span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      className="size-8 shrink-0 cursor-grab text-ink-muted active:cursor-grabbing"
+                      title="Drag to move"
+                      aria-label={`Drag ${group.name} to move`}
+                      tabIndex={-1}
+                      data-fox-card-action=""
+                      onPointerDown={(e) => beginPointerDrag(e, group.id)}
+                      onDoubleClick={(e) => e.stopPropagation()}
+                    >
+                      <IconGripVertical {...actionIcon} aria-hidden />
+                    </Button>
+                    <div className="flex min-w-0 flex-1 items-center gap-2.5 px-1 py-2 text-left text-ink">
+                      <span className="grid size-9 shrink-0 place-items-center rounded-sm bg-leaf/12 text-[var(--leaf)]" aria-hidden>
+                        <IconFolder {...typeIcon} />
+                      </span>
+                      <span className="flex min-w-0 flex-1 flex-col">
+                        <span className="text-[0.68rem] font-bold tracking-wide text-ink-muted uppercase">Group</span>
+                        <span className="truncate text-[0.9rem] font-bold text-ink">{group.name}</span>
+                        {location ? (
+                          <span className="truncate text-[0.75rem] text-ink-muted">{location}</span>
+                        ) : null}
+                      </span>
+                    </div>
+                    <div
+                      className="flex shrink-0 items-center gap-0.5"
+                      data-fox-card-action=""
+                      onDoubleClick={(e) => e.stopPropagation()}
+                    >
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        className="size-8"
+                        aria-label={`Rename ${group.name}`}
+                        title="Rename"
+                        onClick={() => setRenameGroupTarget(group)}
+                      >
+                        <IconPencil {...actionIcon} aria-hidden />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                        aria-label={`Delete ${group.name}`}
+                        title="Delete"
+                        onClick={() => setDeleteTarget(group)}
+                      >
+                        <IconTrash {...actionIcon} aria-hidden />
+                      </Button>
+                    </div>
+                  </>
+                )}
               </div>
               );
             })}
@@ -1180,8 +1241,8 @@ export function Dashboard({
               <div
                 key={host.id}
                 className={cn(
-                  "flex cursor-pointer gap-0.5 rounded-md border border-line bg-surface shadow-(--shadow-sm) backdrop-blur-[var(--blur-sm)]",
-                  layout === "grid" ? "flex-col items-stretch" : "items-center",
+                  "group/card flex cursor-pointer rounded-md border border-line bg-surface shadow-(--shadow-sm) backdrop-blur-[var(--blur-sm)] transition-[border-color,background-color,box-shadow] hover:border-fox/35 hover:bg-surface/90",
+                  layout === "grid" ? "flex-col items-stretch p-2" : "items-center gap-0.5 p-1",
                   isDragging && "opacity-45"
                 )}
                 role="listitem"
@@ -1193,72 +1254,145 @@ export function Dashboard({
                   connectToHost(host);
                 }}
               >
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  className="size-8 shrink-0 cursor-grab text-ink-muted active:cursor-grabbing"
-                  title="Drag to move"
-                  aria-label={`Drag ${host.name} to move`}
-                  tabIndex={-1}
-                  data-fox-card-action=""
-                  onPointerDown={(e) => beginPointerDrag(e, host.id)}
-                  onDoubleClick={(e) => e.stopPropagation()}
-                >
-                  <IconGripVertical {...actionIcon} aria-hidden />
-                </Button>
-                <div className="flex min-w-0 flex-1 items-center gap-2.5 px-1 py-2 text-left text-ink">
-                  <span
-                    className="grid size-9 shrink-0 place-items-center rounded-sm bg-fox/12 text-fox"
-                    aria-hidden
-                  >
-                    <IconServer {...typeIcon} />
-                  </span>
-                  <span className="flex min-w-0 flex-1 flex-col">
-                    <span className="text-[0.68rem] font-bold tracking-wide text-ink-muted uppercase">Host</span>
-                    <span className="truncate text-[0.9rem] font-bold text-ink">{host.name}</span>
-                    <span className="truncate text-[0.75rem] text-ink-muted">{meta}</span>
-                  </span>
-                </div>
-                <div
-                  className="flex shrink-0 items-center gap-0.5"
-                  data-fox-card-action=""
-                  onDoubleClick={(e) => e.stopPropagation()}
-                >
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    className="size-8"
-                    aria-label={`Duplicate ${host.name}`}
-                    title="Duplicate"
-                    onClick={() => openDuplicateHost(host)}
-                  >
-                    <IconCopy {...actionIcon} aria-hidden />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    className="size-8"
-                    aria-label={`Edit ${host.name}`}
-                    title="Edit"
-                    onClick={() => setEditHostTarget(host)}
-                  >
-                    <IconPencil {...actionIcon} aria-hidden />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                    aria-label={`Delete ${host.name}`}
-                    title="Delete"
-                    onClick={() => setDeleteTarget(host)}
-                  >
-                    <IconTrash {...actionIcon} aria-hidden />
-                  </Button>
-                </div>
+                {layout === "grid" ? (
+                  <>
+                    <div
+                      className="flex items-center justify-between gap-1"
+                      data-fox-card-action=""
+                      onDoubleClick={(e) => e.stopPropagation()}
+                    >
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        className="size-7 shrink-0 cursor-grab text-ink-muted active:cursor-grabbing"
+                        title="Drag to move"
+                        aria-label={`Drag ${host.name} to move`}
+                        tabIndex={-1}
+                        onPointerDown={(e) => beginPointerDrag(e, host.id)}
+                      >
+                        <IconGripVertical {...actionIcon} aria-hidden />
+                      </Button>
+                      <div className="flex shrink-0 items-center gap-0.5">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          className="size-7"
+                          aria-label={`Duplicate ${host.name}`}
+                          title="Duplicate"
+                          onClick={() => openDuplicateHost(host)}
+                        >
+                          <IconCopy {...actionIcon} aria-hidden />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          className="size-7"
+                          aria-label={`Edit ${host.name}`}
+                          title="Edit"
+                          onClick={() => setEditHostTarget(host)}
+                        >
+                          <IconPencil {...actionIcon} aria-hidden />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          className="size-7 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                          aria-label={`Delete ${host.name}`}
+                          title="Delete"
+                          onClick={() => setDeleteTarget(host)}
+                        >
+                          <IconTrash {...actionIcon} aria-hidden />
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="flex min-w-0 flex-1 items-center gap-2.5 pt-1.5 pb-0.5 text-left text-ink">
+                      <span
+                        className="grid size-9 shrink-0 place-items-center rounded-sm bg-fox/12 text-fox"
+                        aria-hidden
+                      >
+                        <IconServer {...typeIcon} />
+                      </span>
+                      <span className="flex min-w-0 flex-1 flex-col">
+                        <span className="text-[0.68rem] font-bold tracking-wide text-ink-muted uppercase">Host</span>
+                        <span className="truncate text-[0.9rem] font-bold text-ink">{host.name}</span>
+                        <span className="truncate text-[0.75rem] text-ink-muted">{meta}</span>
+                      </span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      className="size-8 shrink-0 cursor-grab text-ink-muted active:cursor-grabbing"
+                      title="Drag to move"
+                      aria-label={`Drag ${host.name} to move`}
+                      tabIndex={-1}
+                      data-fox-card-action=""
+                      onPointerDown={(e) => beginPointerDrag(e, host.id)}
+                      onDoubleClick={(e) => e.stopPropagation()}
+                    >
+                      <IconGripVertical {...actionIcon} aria-hidden />
+                    </Button>
+                    <div className="flex min-w-0 flex-1 items-center gap-2.5 px-1 py-2 text-left text-ink">
+                      <span
+                        className="grid size-9 shrink-0 place-items-center rounded-sm bg-fox/12 text-fox"
+                        aria-hidden
+                      >
+                        <IconServer {...typeIcon} />
+                      </span>
+                      <span className="flex min-w-0 flex-1 flex-col">
+                        <span className="text-[0.68rem] font-bold tracking-wide text-ink-muted uppercase">Host</span>
+                        <span className="truncate text-[0.9rem] font-bold text-ink">{host.name}</span>
+                        <span className="truncate text-[0.75rem] text-ink-muted">{meta}</span>
+                      </span>
+                    </div>
+                    <div
+                      className="flex shrink-0 items-center gap-0.5"
+                      data-fox-card-action=""
+                      onDoubleClick={(e) => e.stopPropagation()}
+                    >
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        className="size-8"
+                        aria-label={`Duplicate ${host.name}`}
+                        title="Duplicate"
+                        onClick={() => openDuplicateHost(host)}
+                      >
+                        <IconCopy {...actionIcon} aria-hidden />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        className="size-8"
+                        aria-label={`Edit ${host.name}`}
+                        title="Edit"
+                        onClick={() => setEditHostTarget(host)}
+                      >
+                        <IconPencil {...actionIcon} aria-hidden />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                        aria-label={`Delete ${host.name}`}
+                        title="Delete"
+                        onClick={() => setDeleteTarget(host)}
+                      >
+                        <IconTrash {...actionIcon} aria-hidden />
+                      </Button>
+                    </div>
+                  </>
+                )}
               </div>
               );
             })}

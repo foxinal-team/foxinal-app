@@ -702,7 +702,7 @@ export function SftpPane({
       </header>
 
       <nav
-        className="flex shrink-0 flex-wrap items-center gap-0.5 border-b border-line px-2.5 py-1.5 font-mono text-[0.72rem] text-ink-muted"
+        className="flex shrink-0 items-center gap-0.5 overflow-x-auto [scrollbar-width:none] border-b border-line px-2.5 py-1.5 font-mono text-[0.72rem] text-ink-muted"
         aria-label="Current path"
         title={path}
       >
@@ -712,7 +712,7 @@ export function SftpPane({
           crumbs.map((crumb, index) => {
             const isCurrent = index === crumbs.length - 1;
             return (
-              <span key={crumb.path} className="inline-flex min-w-0 items-center">
+              <span key={crumb.path} className="inline-flex shrink-0 items-center">
                 {index > 0 ? (
                   <IconChevronRight
                     className="shrink-0 text-ink-muted/70"
@@ -726,7 +726,7 @@ export function SftpPane({
                   variant="ghost"
                   size="sm"
                   className={cn(
-                    "h-auto max-w-40 overflow-hidden rounded-xs px-1 py-0.5 text-ellipsis whitespace-nowrap font-semibold shadow-none",
+                    "h-auto max-w-44 shrink-0 overflow-hidden rounded-xs px-1.5 py-0.5 text-ellipsis whitespace-nowrap font-semibold shadow-none",
                     isCurrent
                       ? "text-ink hover:bg-transparent"
                       : "text-ink-muted hover:bg-foreground/6 hover:text-ink"

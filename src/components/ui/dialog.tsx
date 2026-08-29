@@ -67,8 +67,10 @@ function DialogContent({
           "text-sm text-foreground shadow-[var(--panel-shadow)] outline-none",
           "data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95",
           "data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
-          size === "default" && "max-w-[min(100%-2.5rem,23.5rem)]",
-          size === "wide" && "max-w-[min(100%-2.5rem,28rem)]",
+          size === "default" &&
+            "max-h-[min(92dvh,42rem)] max-w-[min(100%-2.5rem,23.5rem)] overflow-y-auto [scrollbar-width:thin]",
+          size === "wide" &&
+            "max-h-[min(92dvh,42rem)] max-w-[min(100%-2.5rem,28rem)] overflow-y-auto [scrollbar-width:thin]",
           size === "settings" &&
             "flex max-h-[min(92dvh,44rem)] max-w-[min(100%-2.5rem,36rem)] flex-col overflow-hidden p-[1.2rem]",
           className

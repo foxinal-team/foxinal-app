@@ -994,7 +994,7 @@ export function SettingsDialog({
                     >
                       <SelectTrigger
                         id="auto-lock-minutes"
-                        className="!h-10 w-full min-w-0"
+                        className="!h-10 w-full min-w-0 rounded-[var(--radius-sm)] border-line bg-[var(--field-bg)]"
                       >
                         <SelectValue />
                       </SelectTrigger>
