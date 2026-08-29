@@ -73,7 +73,7 @@
 | `[x]` | **Live Search & Instant Filtering** | Real-time search with group-aware location badges and keyboard shortcut (`Cmd/Ctrl + F`). | v1.0 |
 | `[x]` | **List & Adaptive Grid Views** | Switch between high-density list and structured card grid views. | v1.1 |
 | `[x]` | **JSON Export & Import** | Full inventory export and safe merging into root or sub-groups. | v1.0 |
-| `[ ]` | **Command Palette (`Cmd/Ctrl + K`)** | Universal spotlight launcher to jump to any host, switch sessions, run snippets, or toggle settings. | v1.2 |
+| `[x]` | **Command Palette (`Cmd/Ctrl + K`)** | Universal spotlight launcher to jump to any host, switch sessions, run snippets, or toggle settings. | v1.1 |
 | `[ ]` | **Command Snippets & Quick Scripts** | Library of reusable shell scripts with variable placeholder prompts (e.g. `docker logs {{container}}`). | v1.2 |
 | `[ ]` | **Environment Color Badges & Production Safeguards** | Tag hosts with `PROD`, `STAGING`, `DEV` badges and optional confirm prompts for destructive commands. | v1.3 |
 | `[ ]` | **Custom Host Environment Variables** | Define custom environment variables preset per host or group. | v1.3 |

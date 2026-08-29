@@ -26,8 +26,8 @@ Managed via `next-themes` and `src/hooks/useTheme.ts`:
 
 ## Component Guidelines
 
-1. **Accessibility**: Always use Radix primitives with proper ARIA attributes for modals, dropdowns, and context menus.
-2. **Keyboard Navigation**: Ensure hotkeys (e.g. `Cmd/Ctrl + T` for new tab, `Cmd/Ctrl + W` for close, `Cmd/Ctrl + ,` for settings) are intercepted without colliding with the active terminal emulator.
+1. **Accessibility**: Always use Radix primitives with proper ARIA attributes for modals, dropdowns, context menus, and command palettes.
+2. **Keyboard Navigation**: Ensure hotkeys (e.g. `Cmd/Ctrl + K` for Command Palette, `Cmd/Ctrl + F` for Search, `Cmd/Ctrl + ,` for Settings, `Cmd/Ctrl + T` for new tab, `Cmd/Ctrl + W` for close) are intercepted without colliding with the active terminal emulator.
 3. **Responsive Density**: Keep spacing compact and efficient for power users who manage dozens of hosts simultaneously.
 
 ---

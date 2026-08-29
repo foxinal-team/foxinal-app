@@ -347,6 +347,12 @@ export function TerminalView({
         term.attachCustomKeyEventHandler((ev) => {
           if (ev.type !== "keydown") return true;
 
+          // Allow app shortcuts like ⌘K (Command Palette) and ⌘, (Settings) to bubble
+          const key = ev.key.toLowerCase();
+          if ((ev.metaKey || ev.ctrlKey) && !ev.altKey && !ev.shiftKey && (key === "k" || key === ",")) {
+            return false;
+          }
+
           if (isCopyChord(ev)) {
             const selection = term?.getSelection() ?? "";
             if (selection) {

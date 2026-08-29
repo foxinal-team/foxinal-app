@@ -34,6 +34,7 @@ import {
 } from "react";
 import { Atmosphere } from "@/components/Atmosphere";
 import { BrandMark } from "@/components/BrandMark";
+import { CommandPalette } from "@/components/CommandPalette";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { UpdateAvailableDialog } from "@/components/UpdateAvailableDialog";
@@ -178,6 +179,7 @@ export function Dashboard({
   const [editHostTarget, setEditHostTarget] = useState<HostItem | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<InventoryItem | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [sftpDialogOpen, setSftpDialogOpen] = useState(false);
   const [updatePrompt, setUpdatePrompt] = useState<LatestRelease | null>(null);
@@ -216,6 +218,28 @@ export function Dashboard({
     goToRoot,
     goToGroup,
   } = useInventory(vaultKey, initialItems);
+
+  // Global keyboard shortcuts (Cmd+K for Command Palette, Cmd+, for Settings)
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase();
+      // Cmd+K / Ctrl+K -> Command Palette
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && key === "k") {
+        e.preventDefault();
+        setCommandPaletteOpen((prev) => !prev);
+        return;
+      }
+      // Cmd+, / Ctrl+, -> Settings
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && key === ",") {
+        e.preventDefault();
+        setSettingsOpen(true);
+        return;
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   const itemsRef = useRef(items);
   const moveItemRef = useRef(moveItem);
@@ -623,6 +647,22 @@ export function Dashboard({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            className="h-[var(--control-h)] gap-2 bg-[var(--toggle-bg)] px-3 text-ink-muted hover:text-ink backdrop-blur-[var(--blur-sm)]"
+            aria-label="Command Palette"
+            title="Quick Command Palette (Cmd+K)"
+            onClick={() => setCommandPaletteOpen(true)}
+          >
+            <IconSearch size={16} stroke={1.75} aria-hidden />
+            <kbd className="rounded border border-line bg-surface px-1.5 py-0.5 font-mono text-[0.65rem] font-semibold text-ink-muted">
+              {typeof navigator !== "undefined" &&
+              /mac|iphone|ipad|ipod/i.test(navigator.platform)
+                ? "⌘K"
+                : "Ctrl K"}
+            </kbd>
+          </Button>
           <ThemeToggle
             theme={theme}
             label={themeLabel}
@@ -1551,6 +1591,30 @@ export function Dashboard({
             toast.error("Could not open the release page.");
           });
         }}
+      />
+
+      <CommandPalette
+        open={commandPaletteOpen}
+        onOpenChange={setCommandPaletteOpen}
+        items={items}
+        tabs={tabs}
+        activeTabId={activeTabId}
+        onSelectTab={selectTab}
+        onConnectHost={connectToHost}
+        onOpenLocalTerminal={openLocalTerminal}
+        onOpenView={(v) => {
+          setView(v);
+          if (v === "sftp") setSftpMounted(true);
+        }}
+        onOpenNewHost={() => setCreateHostOpen(true)}
+        onOpenNewGroup={() => setCreateGroupOpen(true)}
+        onOpenImport={() => setImportOpen(true)}
+        onOpenExport={() => void handleExport()}
+        onOpenSettings={() => setSettingsOpen(true)}
+        onLock={securityEnabled ? onLock : undefined}
+        securityEnabled={securityEnabled}
+        theme={theme}
+        onCycleTheme={onCycleTheme}
       />
     </main>
   );
