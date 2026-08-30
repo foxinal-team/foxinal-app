@@ -33,5 +33,6 @@ Managed via `next-themes` and `src/hooks/useTheme.ts`:
 ---
 
 ## Related Documentation
+- [Universal Design System & Tokens](file:///Users/danial/Documents/Projects/foxinal/DESIGN.md)
 - [System Architecture](file:///Users/danial/Documents/Projects/foxinal/docs/architecture.md)
 - [Terminal & PTY Subsystem](file:///Users/danial/Documents/Projects/foxinal/docs/terminal-and-pty.md)
