@@ -26,3 +26,4 @@ tauri-plugin-pty = { path = "crates/tauri-plugin-pty" }
 ssh2 = { version = "0.9.6", features = ["vendored-openssl"] }
 arboard = { version = "3.6.1", features = ["wayland-data-control"] }
 tauri-plugin-dialog = "2.7.2"
+base64 = "0.22"

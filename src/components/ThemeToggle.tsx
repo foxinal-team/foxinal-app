@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 
 type ThemeToggleProps = {
   theme: string;
-  label: string;
+  label?: string;
   onCycle: () => void;
   className?: string;
 };
@@ -22,7 +22,7 @@ function ThemeIcon({ theme }: { theme: string }) {
 
 export function ThemeToggle({
   theme,
-  label,
+  label = theme,
   onCycle,
   className,
 }: ThemeToggleProps) {
@@ -30,19 +30,16 @@ export function ThemeToggle({
     <Button
       type="button"
       variant="outline"
-      size="sm"
+      size="icon"
       onClick={onCycle}
       aria-label={`Theme: ${label}`}
       title={`Theme: ${label}`}
       className={cn(
-        "h-[var(--control-h)] gap-1.5 bg-[var(--toggle-bg)] px-3.5 backdrop-blur-[var(--blur-sm)]",
+        "size-[var(--control-h)] bg-[var(--toggle-bg)] backdrop-blur-[var(--blur-sm)] shrink-0",
         className
       )}
     >
       <ThemeIcon theme={theme} />
-      <span className="inline-block min-w-12.5 text-left" data-mode={theme} aria-hidden>
-        {label}
-      </span>
     </Button>
   );
 }

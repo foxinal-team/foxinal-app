@@ -1,4 +1,5 @@
-use serde::Serialize;
+use base64::Engine;
+use serde::{Deserialize, Serialize};
 use ssh2::{FileStat, Session};
 use std::collections::HashMap;
 use std::fs::{self, File};
@@ -1063,6 +1064,704 @@ pub async fn sftp_rename(
     let (result, live) = joined;
     put_session(&state, sid, live)?;
     result
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct ImageContentResult {
+    pub data_url: String,
+    pub mime_type: String,
+    pub size: u64,
+    pub size_label: String,
+    pub name: String,
+}
+
+pub fn guess_image_mime(path_or_name: &str) -> &'static str {
+    let lower = path_or_name.to_lowercase();
+    if lower.ends_with(".png") {
+        "image/png"
+    } else if lower.ends_with(".jpg") || lower.ends_with(".jpeg") {
+        "image/jpeg"
+    } else if lower.ends_with(".gif") {
+        "image/gif"
+    } else if lower.ends_with(".webp") {
+        "image/webp"
+    } else if lower.ends_with(".svg") {
+        "image/svg+xml"
+    } else if lower.ends_with(".ico") {
+        "image/x-icon"
+    } else if lower.ends_with(".bmp") {
+        "image/bmp"
+    } else if lower.ends_with(".avif") {
+        "image/avif"
+    } else {
+        "application/octet-stream"
+    }
+}
+
+#[tauri::command]
+pub async fn fs_read_image(
+    path: String,
+    max_bytes: Option<usize>,
+) -> Result<ImageContentResult, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let p = PathBuf::from(path.trim());
+        if !p.is_file() {
+            return Err("File does not exist or is not a regular file.".into());
+        }
+
+        let name = p
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| p.to_string_lossy().to_string());
+
+        let meta = fs::metadata(&p).map_err(|e| format!("Failed to read metadata: {e}"))?;
+        let size = meta.len();
+        let limit = max_bytes.unwrap_or(25 * 1024 * 1024);
+
+        if size > limit as u64 {
+            return Err(format!(
+                "Image is too large to preview ({:.1} MB). Limit is 25 MB.",
+                size as f64 / (1024.0 * 1024.0)
+            ));
+        }
+
+        let bytes = fs::read(&p).map_err(|e| format!("Failed to read image: {e}"))?;
+        let mime_type = guess_image_mime(&name);
+        let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
+        let data_url = format!("data:{mime_type};base64,{b64}");
+
+        Ok(ImageContentResult {
+            data_url,
+            mime_type: mime_type.to_string(),
+            size,
+            size_label: format_bytes_label(size),
+            name,
+        })
+    })
+    .await
+    .map_err(|e| format!("Local image read task failed: {e}"))?
+}
+
+#[tauri::command]
+pub async fn sftp_read_image(
+    state: State<'_, SftpState>,
+    session_id: String,
+    path: String,
+    max_bytes: Option<usize>,
+) -> Result<ImageContentResult, String> {
+    let live = take_session(&state, &session_id)?;
+    let sid = session_id.clone();
+    let joined = tauri::async_runtime::spawn_blocking(move || {
+        let result = read_image_remote(&live.session, &path, max_bytes);
+        (result, live)
+    })
+    .await
+    .map_err(|e| format!("SFTP image read task failed: {e}"))?;
+
+    let (result, live) = joined;
+    put_session(&state, sid, live)?;
+    result
+}
+
+fn read_image_remote(
+    session: &Session,
+    path: &str,
+    max_bytes: Option<usize>,
+) -> Result<ImageContentResult, String> {
+    let path = path.trim();
+    if path.is_empty() || path == "/" {
+        return Err("Invalid remote image path.".into());
+    }
+
+    let sftp = session
+        .sftp()
+        .map_err(|e| format!("SFTP open failed: {e}"))?;
+    let mut file = sftp
+        .open(Path::new(path))
+        .map_err(|e| format!("Failed to open remote file: {e}"))?;
+    let stat = file
+        .stat()
+        .map_err(|e| format!("Failed to stat remote file: {e}"))?;
+    let size = stat.size.unwrap_or(0);
+    let limit = max_bytes.unwrap_or(25 * 1024 * 1024);
+
+    if size > limit as u64 {
+        return Err(format!(
+            "Image is too large to preview ({:.1} MB). Limit is 25 MB.",
+            size as f64 / (1024.0 * 1024.0)
+        ));
+    }
+
+    let mut buf = Vec::with_capacity(size as usize);
+    file.read_to_end(&mut buf)
+        .map_err(|e| format!("Failed to read remote image: {e}"))?;
+
+    let name = path
+        .rsplit('/')
+        .find(|s| !s.is_empty())
+        .unwrap_or(path)
+        .to_string();
+    let mime_type = guess_image_mime(&name);
+    let b64 = base64::engine::general_purpose::STANDARD.encode(&buf);
+    let data_url = format!("data:{mime_type};base64,{b64}");
+
+    Ok(ImageContentResult {
+        data_url,
+        mime_type: mime_type.to_string(),
+        size,
+        size_label: format_bytes_label(size),
+        name,
+    })
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct FilePermissionsInfo {
+    pub path: String,
+    pub name: String,
+    pub is_dir: bool,
+    pub is_symlink: bool,
+    pub size: u64,
+    pub size_label: String,
+    pub modified: Option<u64>,
+    pub modified_label: String,
+    pub accessed: Option<u64>,
+    pub accessed_label: String,
+    pub mode: u32,
+    pub mode_octal: String,
+    pub mode_symbolic: String,
+    pub uid: Option<u32>,
+    pub gid: Option<u32>,
+    pub user: Option<String>,
+    pub group: Option<String>,
+    pub read_only: bool,
+}
+
+pub fn format_mode_octal(mode: u32) -> String {
+    format!("{:04o}", mode & 0o7777)
+}
+
+pub fn format_mode_symbolic(mode: u32, is_dir: bool, is_symlink: bool) -> String {
+    let type_char = if is_symlink {
+        'l'
+    } else if is_dir {
+        'd'
+    } else {
+        '-'
+    };
+
+    let flags = [
+        (0o400, 'r'),
+        (0o200, 'w'),
+        (0o100, 'x'),
+        (0o040, 'r'),
+        (0o020, 'w'),
+        (0o010, 'x'),
+        (0o004, 'r'),
+        (0o002, 'w'),
+        (0o001, 'x'),
+    ];
+
+    let mut out = String::with_capacity(10);
+    out.push(type_char);
+
+    for (bit, ch) in flags {
+        if (mode & bit) != 0 {
+            out.push(ch);
+        } else {
+            out.push('-');
+        }
+    }
+
+    out
+}
+
+#[tauri::command]
+pub async fn fs_get_properties(path: String) -> Result<FilePermissionsInfo, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let p = PathBuf::from(path.trim());
+        if !p.exists() {
+            return Err("File or directory does not exist.".into());
+        }
+
+        let name = p
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| p.to_string_lossy().to_string());
+
+        let sym_meta = fs::symlink_metadata(&p)
+            .map_err(|e| format!("Failed to read metadata: {e}"))?;
+        let is_symlink = sym_meta.file_type().is_symlink();
+        let is_dir = sym_meta.is_dir();
+        let size = sym_meta.len();
+
+        let modified = sym_meta
+            .modified()
+            .ok()
+            .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+            .map(|d| d.as_secs());
+        let accessed = sym_meta
+            .accessed()
+            .ok()
+            .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+            .map(|d| d.as_secs());
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::MetadataExt;
+            let mode = sym_meta.mode();
+            let uid = sym_meta.uid();
+            let gid = sym_meta.gid();
+
+            let user = Command::new("id")
+                .args(["-nu", &uid.to_string()])
+                .output()
+                .ok()
+                .and_then(|out| {
+                    if out.status.success() {
+                        let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                        if !s.is_empty() {
+                            Some(s)
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                })
+                .or_else(|| Some(uid.to_string()));
+
+            let group = Command::new("id")
+                .args(["-ng", &gid.to_string()])
+                .output()
+                .ok()
+                .and_then(|out| {
+                    if out.status.success() {
+                        let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                        if !s.is_empty() {
+                            Some(s)
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                })
+                .or_else(|| Some(gid.to_string()));
+
+            let perm_mode = mode & 0o7777;
+            let read_only = sym_meta.permissions().readonly();
+
+            Ok(FilePermissionsInfo {
+                path: p.to_string_lossy().to_string(),
+                name,
+                is_dir,
+                is_symlink,
+                size,
+                size_label: format_bytes_label(size),
+                modified,
+                modified_label: format_modified_label(modified),
+                accessed,
+                accessed_label: format_modified_label(accessed),
+                mode: perm_mode,
+                mode_octal: format_mode_octal(perm_mode),
+                mode_symbolic: format_mode_symbolic(perm_mode, is_dir, is_symlink),
+                uid: Some(uid),
+                gid: Some(gid),
+                user,
+                group,
+                read_only,
+            })
+        }
+
+        #[cfg(not(unix))]
+        {
+            let read_only = sym_meta.permissions().readonly();
+            let mode = if is_dir { 0o755 } else if read_only { 0o444 } else { 0o644 };
+
+            Ok(FilePermissionsInfo {
+                path: p.to_string_lossy().to_string(),
+                name,
+                is_dir,
+                is_symlink,
+                size,
+                size_label: format_bytes_label(size),
+                modified,
+                modified_label: format_modified_label(modified),
+                accessed,
+                accessed_label: format_modified_label(accessed),
+                mode,
+                mode_octal: format_mode_octal(mode),
+                mode_symbolic: format_mode_symbolic(mode, is_dir, is_symlink),
+                uid: None,
+                gid: None,
+                user: None,
+                group: None,
+                read_only,
+            })
+        }
+    })
+    .await
+    .map_err(|e| format!("Local property task failed: {e}"))?
+}
+
+#[tauri::command]
+pub async fn fs_set_permissions(
+    path: String,
+    mode: u32,
+    recursive: bool,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let p = PathBuf::from(path.trim());
+        if !p.exists() {
+            return Err("File or directory does not exist.".into());
+        }
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let permissions = fs::Permissions::from_mode(mode & 0o7777);
+
+            if recursive && p.is_dir() {
+                set_local_permissions_recursive(&p, mode & 0o7777)?;
+            } else {
+                fs::set_permissions(&p, permissions)
+                    .map_err(|e| format!("Failed to set permissions: {e}"))?;
+            }
+            Ok(())
+        }
+
+        #[cfg(not(unix))]
+        {
+            let _ = (mode, recursive);
+            Ok(())
+        }
+    })
+    .await
+    .map_err(|e| format!("Set permissions task failed: {e}"))?
+}
+
+#[cfg(unix)]
+fn set_local_permissions_recursive(dir: &Path, mode: u32) -> Result<(), String> {
+    use std::os::unix::fs::PermissionsExt;
+    fs::set_permissions(dir, fs::Permissions::from_mode(mode))
+        .map_err(|e| format!("Failed to set permissions on {}: {e}", dir.display()))?;
+
+    let entries = fs::read_dir(dir)
+        .map_err(|e| format!("Failed to read directory {}: {e}", dir.display()))?;
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            set_local_permissions_recursive(&path, mode)?;
+        } else {
+            fs::set_permissions(&path, fs::Permissions::from_mode(mode))
+                .map_err(|e| format!("Failed to set permissions on {}: {e}", path.display()))?;
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn sftp_get_properties(
+    state: State<'_, SftpState>,
+    session_id: String,
+    path: String,
+) -> Result<FilePermissionsInfo, String> {
+    let live = take_session(&state, &session_id)?;
+    let sid = session_id.clone();
+    let joined = tauri::async_runtime::spawn_blocking(move || {
+        let result = get_remote_properties(&live.session, &path);
+        (result, live)
+    })
+    .await
+    .map_err(|e| format!("SFTP properties task failed: {e}"))?;
+
+    let (result, live) = joined;
+    put_session(&state, sid, live)?;
+    result
+}
+
+fn get_remote_properties(session: &Session, path: &str) -> Result<FilePermissionsInfo, String> {
+    let path = path.trim();
+    if path.is_empty() {
+        return Err("Invalid remote path.".into());
+    }
+
+    let sftp = session
+        .sftp()
+        .map_err(|e| format!("SFTP open failed: {e}"))?;
+    let stat = sftp
+        .stat(Path::new(path))
+        .or_else(|_| sftp.lstat(Path::new(path)))
+        .map_err(|e| format!("Failed to inspect remote path: {e}"))?;
+
+    let is_dir = stat.is_dir();
+    let is_symlink = stat.file_type().is_symlink();
+    let size = stat.size.unwrap_or(0);
+    let modified = stat.mtime;
+    let accessed = stat.atime;
+
+    let perm_mode = stat.perm.unwrap_or(if is_dir { 0o755 } else { 0o644 }) & 0o7777;
+    let uid = stat.uid;
+    let gid = stat.gid;
+
+    let name = path
+        .rsplit('/')
+        .find(|s| !s.is_empty())
+        .unwrap_or(path)
+        .to_string();
+
+    // Query user and group name from remote session if uid/gid exist
+    let mut user = None;
+    let mut group = None;
+
+    if let (Some(u), Some(g)) = (uid, gid) {
+        let cmd = format!(
+            "id -nu {u} 2>/dev/null || echo {u}; id -ng {g} 2>/dev/null || echo {g}"
+        );
+        if let Ok(out) = exec_stdout(session, &cmd) {
+            let mut lines = out.lines();
+            if let Some(l1) = lines.next() {
+                let s = l1.trim();
+                if !s.is_empty() {
+                    user = Some(s.to_string());
+                }
+            }
+            if let Some(l2) = lines.next() {
+                let s = l2.trim();
+                if !s.is_empty() {
+                    group = Some(s.to_string());
+                }
+            }
+        }
+    }
+
+    Ok(FilePermissionsInfo {
+        path: path.to_string(),
+        name,
+        is_dir,
+        is_symlink,
+        size,
+        size_label: format_bytes_label(size),
+        modified,
+        modified_label: format_modified_label(modified),
+        accessed,
+        accessed_label: format_modified_label(accessed),
+        mode: perm_mode,
+        mode_octal: format_mode_octal(perm_mode),
+        mode_symbolic: format_mode_symbolic(perm_mode, is_dir, is_symlink),
+        uid,
+        gid,
+        user,
+        group,
+        read_only: false,
+    })
+}
+
+#[tauri::command]
+pub async fn sftp_set_permissions(
+    state: State<'_, SftpState>,
+    session_id: String,
+    path: String,
+    mode: u32,
+    recursive: bool,
+) -> Result<(), String> {
+    let live = take_session(&state, &session_id)?;
+    let sid = session_id.clone();
+    let joined = tauri::async_runtime::spawn_blocking(move || {
+        let result = set_remote_permissions(&live.session, &path, mode, recursive);
+        (result, live)
+    })
+    .await
+    .map_err(|e| format!("SFTP set permissions task failed: {e}"))?;
+
+    let (result, live) = joined;
+    put_session(&state, sid, live)?;
+    result
+}
+
+fn set_remote_permissions(
+    session: &Session,
+    path: &str,
+    mode: u32,
+    recursive: bool,
+) -> Result<(), String> {
+    let path = path.trim();
+    if path.is_empty() {
+        return Err("Invalid remote path.".into());
+    }
+
+    let octal = format!("{:04o}", mode & 0o7777);
+
+    if recursive {
+        let quoted = shell_quote(path);
+        let cmd = format!("chmod -R {octal} {quoted}");
+        let (status, stderr) = exec_command(session, &cmd)?;
+        if status != 0 {
+            let msg = if stderr.trim().is_empty() {
+                format!("chmod failed with exit status {status}")
+            } else {
+                stderr.trim().to_string()
+            };
+            return Err(msg);
+        }
+        Ok(())
+    } else {
+        let sftp = session
+            .sftp()
+            .map_err(|e| format!("SFTP open failed: {e}"))?;
+        let stat = FileStat {
+            size: None,
+            uid: None,
+            gid: None,
+            perm: Some(mode & 0o7777),
+            atime: None,
+            mtime: None,
+        };
+        sftp.setstat(Path::new(path), stat)
+            .map_err(|e| format!("Failed to set permissions: {e}"))
+    }
+}
+
+#[tauri::command]
+pub async fn sftp_set_ownership(
+    state: State<'_, SftpState>,
+    session_id: String,
+    path: String,
+    user: Option<String>,
+    group: Option<String>,
+    recursive: bool,
+) -> Result<(), String> {
+    let live = take_session(&state, &session_id)?;
+    let sid = session_id.clone();
+    let joined = tauri::async_runtime::spawn_blocking(move || {
+        let result = set_remote_ownership(&live.session, &path, user, group, recursive);
+        (result, live)
+    })
+    .await
+    .map_err(|e| format!("SFTP set ownership task failed: {e}"))?;
+
+    let (result, live) = joined;
+    put_session(&state, sid, live)?;
+    result
+}
+
+fn set_remote_ownership(
+    session: &Session,
+    path: &str,
+    user: Option<String>,
+    group: Option<String>,
+    recursive: bool,
+) -> Result<(), String> {
+    let path = path.trim();
+    if path.is_empty() {
+        return Err("Invalid remote path.".into());
+    }
+
+    let u_clean = user.as_deref().unwrap_or("").trim();
+    let g_clean = group.as_deref().unwrap_or("").trim();
+
+    if u_clean.is_empty() && g_clean.is_empty() {
+        return Ok(());
+    }
+
+    let spec = match (!u_clean.is_empty(), !g_clean.is_empty()) {
+        (true, true) => format!("{u_clean}:{g_clean}"),
+        (true, false) => u_clean.to_string(),
+        (false, true) => format!(":{g_clean}"),
+        (false, false) => return Ok(()),
+    };
+
+    let rec_flag = if recursive { "-R " } else { "" };
+    let quoted = shell_quote(path);
+    let cmd = format!("chown {rec_flag}{spec} {quoted}");
+    let (status, stderr) = exec_command(session, &cmd)?;
+    if status != 0 {
+        let msg = if stderr.trim().is_empty() {
+            format!("chown failed with exit status {status}")
+        } else {
+            stderr.trim().to_string()
+        };
+        return Err(msg);
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn sftp_sudo_exec(
+    state: State<'_, SftpState>,
+    session_id: String,
+    command: String,
+    password: Option<String>,
+) -> Result<(), String> {
+    let live = take_session(&state, &session_id)?;
+    let sid = session_id.clone();
+    let joined = tauri::async_runtime::spawn_blocking(move || {
+        let result = exec_sudo_remote(&live.session, &command, password.as_deref());
+        (result, live)
+    })
+    .await
+    .map_err(|e| format!("SFTP sudo task failed: {e}"))?;
+
+    let (result, live) = joined;
+    put_session(&state, sid, live)?;
+    result
+}
+
+fn exec_sudo_remote(
+    session: &Session,
+    command: &str,
+    password: Option<&str>,
+) -> Result<(), String> {
+    let trimmed = command.trim();
+    if trimmed.is_empty() {
+        return Err("No command specified for sudo execution.".into());
+    }
+
+    let mut channel = session
+        .channel_session()
+        .map_err(|e| format!("SSH channel failed: {e}"))?;
+
+    let sudo_cmd = format!("sudo -S -p '' -- {trimmed}");
+    channel
+        .exec(&sudo_cmd)
+        .map_err(|e| format!("Remote sudo exec failed: {e}"))?;
+
+    if let Some(pw) = password {
+        if !pw.is_empty() {
+            let _ = channel.write_all(pw.as_bytes());
+            let _ = channel.write_all(b"\n");
+            let _ = channel.flush();
+        }
+    }
+    let _ = channel.send_eof();
+
+    let mut stderr = String::new();
+    let _ = channel.stderr().read_to_string(&mut stderr);
+    let mut stdout = String::new();
+    let _ = channel.read_to_string(&mut stdout);
+    channel
+        .wait_close()
+        .map_err(|e| format!("Remote command wait failed: {e}"))?;
+
+    let status = channel.exit_status().unwrap_or(-1);
+    if status != 0 {
+        let err_text = stderr.trim();
+        if err_text.to_lowercase().contains("incorrect password")
+            || err_text.to_lowercase().contains("authentication failure")
+            || err_text.to_lowercase().contains("try again")
+        {
+            return Err("Sudo authentication failed: Incorrect password.".into());
+        }
+        if !err_text.is_empty() {
+            return Err(err_text.to_string());
+        }
+        return Err(format!("Command failed with exit status {status}."));
+    }
+
+    Ok(())
 }
 
 #[tauri::command]
@@ -2183,6 +2882,37 @@ mod tests {
             let _ = fs::remove_dir_all(&temp_dir);
         });
     }
+
+    #[test]
+    fn test_format_mode_octal() {
+        assert_eq!(format_mode_octal(0o755), "0755");
+        assert_eq!(format_mode_octal(0o644), "0644");
+        assert_eq!(format_mode_octal(0o700), "0700");
+        assert_eq!(format_mode_octal(0o777), "0777");
+    }
+
+    #[test]
+    fn test_format_mode_symbolic() {
+        assert_eq!(format_mode_symbolic(0o755, true, false), "drwxr-xr-x");
+        assert_eq!(format_mode_symbolic(0o644, false, false), "-rw-r--r--");
+        assert_eq!(format_mode_symbolic(0o777, false, true), "lrwxrwxrwx");
+        assert_eq!(format_mode_symbolic(0o600, false, false), "-rw-------");
+    }
+
+    #[test]
+    fn test_guess_image_mime() {
+        assert_eq!(guess_image_mime("photo.png"), "image/png");
+        assert_eq!(guess_image_mime("pic.jpg"), "image/jpeg");
+        assert_eq!(guess_image_mime("PIC.JPEG"), "image/jpeg");
+        assert_eq!(guess_image_mime("icon.svg"), "image/svg+xml");
+        assert_eq!(guess_image_mime("anim.gif"), "image/gif");
+        assert_eq!(guess_image_mime("hero.webp"), "image/webp");
+        assert_eq!(guess_image_mime("favicon.ico"), "image/x-icon");
+        assert_eq!(guess_image_mime("image.avif"), "image/avif");
+        assert_eq!(guess_image_mime("file.pdf"), "application/octet-stream");
+    }
 }
+
+
 
 

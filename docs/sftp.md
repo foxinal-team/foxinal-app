@@ -36,6 +36,23 @@ Foxinal features a dual-pane file manager supporting side-by-side local filesyst
   - Large file protection loads up to 5 MB with read-only warning.
   - Unsaved changes confirmation dialog prevents accidental loss.
 
+### 4. Permissions & Ownership Inspector (`chmod` / `chown`)
+- **Visual 3x3 Permission Matrix**: Interactive Read / Write / Execute toggles for Owner (User), Group, and Others (Public).
+- **Two-Way Octal Synchronization**: Live synchronized octal codes (`0755`, `0644`, `0600`, `0777`) with real-time numeric validation and symbolic mode notation badges (`drwxr-xr-x`).
+- **Quick Presets**: 1-click presets for common file modes (`644`, `755`, `600`, `777`) and directory modes (`755`, `700`, `775`, `777`).
+- **Recursive Directory Application**: Batch apply permissions and ownership recursively to all child files and subdirectories with `-R`.
+- **Remote Ownership (`chown`)**: Modify owner user and group on remote servers.
+- **SSH Sudo Elevation Fallback**:
+  - When standard SFTP `setstat` encounters permission denial (`SSH_FX_PERMISSION_DENIED`), the inspector enables superuser elevation.
+  - Opens companion SSH channel to execute `sudo -S chmod` / `sudo -S chown` with password piping to stdin.
+  - Zero-knowledge ephemeral password handling: Sudo passwords are kept strictly in memory during execution and never persisted to disk or logs.
+
+### 5. Built-in Quick Image Viewer
+- **Instant Preview**: Directly view remote SFTP and local image files (`.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, `.svg`, `.ico`, `.bmp`, `.avif`).
+- **Base64 Binary Streaming**: Streams binary image data over SFTP with automatic MIME-type detection.
+- **Image Metadata**: Displays natural image pixel resolution (`width × height px`), formatted file size, and format tag.
+- **Smart Dispatch**: Double-clicking or right-clicking images automatically opens the Image Viewer instead of the text editor.
+
 ---
 
 ## Backend Commands Reference (`src-tauri/src/sftp.rs`)
@@ -47,7 +64,10 @@ Foxinal features a dual-pane file manager supporting side-by-side local filesyst
 | `fs_mkdir` / `fs_create_file` | Create directories or empty files locally |
 | `fs_remove` / `fs_rename` | Delete or rename local filesystem entries |
 | `fs_read_text_file` | Read local text file with UTF-8 and binary detection |
+| `fs_read_image` | Read local image file as Base64 data URL with MIME type detection |
 | `fs_write_text_file` | Write edited text file to local disk |
+| `fs_get_properties` | Query local file metadata, permissions, UID/GID, and timestamps |
+| `fs_set_permissions` | Apply permissions (`chmod`) to local files or directories |
 | `sftp_connect` | Establish an authenticated SFTP session (key or password) |
 | `sftp_disconnect` | Terminate and clean up an active SFTP session |
 | `sftp_home_dir` | Resolve remote user's home directory (`.` or `pwd`) |
@@ -55,7 +75,12 @@ Foxinal features a dual-pane file manager supporting side-by-side local filesyst
 | `sftp_mkdir` / `sftp_create_file` | Create remote directories or files |
 | `sftp_remove` / `sftp_rename` | Remove or rename remote files/directories |
 | `sftp_read_text_file` | Read remote file contents over SFTP |
+| `sftp_read_image` | Read remote image file as Base64 data URL over SFTP |
 | `sftp_write_text_file` | Write edited text buffer back to remote SFTP destination |
+| `sftp_get_properties` | Query remote file metadata, permissions mode, UID/GID, and owner names |
+| `sftp_set_permissions` | Set remote file/directory permissions mode with optional recursive flag |
+| `sftp_set_ownership` | Modify remote file owner and group (`chown`) |
+| `sftp_sudo_exec` | Execute elevated remote commands using `sudo -S` over an SSH channel |
 | `transfer_entries` | Execute batch file transfers with progress reporting |
 | `cancel_sftp_transfer` | Cancel ongoing transfer task |
 

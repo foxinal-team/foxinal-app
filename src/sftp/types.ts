@@ -72,3 +72,65 @@ export type FileContentResult = {
   truncated: boolean;
 };
 
+export type FilePermissionsInfo = {
+  path: string;
+  name: string;
+  isDir: boolean;
+  isSymlink: boolean;
+  size: number;
+  sizeLabel: string;
+  modified: number | null;
+  modifiedLabel: string;
+  accessed: number | null;
+  accessedLabel: string;
+  mode: number;
+  modeOctal: string;
+  modeSymbolic: string;
+  uid?: number;
+  gid?: number;
+  user?: string;
+  group?: string;
+  readOnly: boolean;
+};
+
+export type PermissionTriplet = {
+  read: boolean;
+  write: boolean;
+  exec: boolean;
+};
+
+export type PermissionMatrix = {
+  owner: PermissionTriplet;
+  group: PermissionTriplet;
+  others: PermissionTriplet;
+};
+
+export type ImageContentResult = {
+  dataUrl: string;
+  mimeType: string;
+  size: number;
+  sizeLabel: string;
+  name: string;
+};
+
+export const IMAGE_EXTENSIONS = new Set([
+  "png",
+  "jpg",
+  "jpeg",
+  "gif",
+  "webp",
+  "svg",
+  "ico",
+  "bmp",
+  "avif",
+]);
+
+export function isImageFileName(filename: string): boolean {
+  const dot = filename.lastIndexOf(".");
+  if (dot === -1) return false;
+  const ext = filename.slice(dot + 1).toLowerCase();
+  return IMAGE_EXTENSIONS.has(ext);
+}
+
+
+

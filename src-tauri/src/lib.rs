@@ -9,11 +9,12 @@ use tauri::{AppHandle, Manager};
 mod sftp;
 
 use sftp::{
-    cancel_sftp_transfer, fs_create_file, fs_home_dir, fs_list_dir, fs_mkdir, fs_parent_dir,
-    fs_read_text_file, fs_remove, fs_rename, fs_write_text_file, sftp_connect, sftp_create_file,
-    sftp_disconnect, sftp_home_dir, sftp_list_dir, sftp_mkdir, sftp_parent_dir,
-    sftp_read_text_file, sftp_remove, sftp_rename, sftp_write_text_file, transfer_entries,
-    SftpState,
+    cancel_sftp_transfer, fs_create_file, fs_get_properties, fs_home_dir, fs_list_dir, fs_mkdir,
+    fs_parent_dir, fs_read_image, fs_read_text_file, fs_remove, fs_rename, fs_set_permissions,
+    fs_write_text_file, sftp_connect, sftp_create_file, sftp_disconnect, sftp_get_properties,
+    sftp_home_dir, sftp_list_dir, sftp_mkdir, sftp_parent_dir, sftp_read_image,
+    sftp_read_text_file, sftp_remove, sftp_rename, sftp_set_ownership, sftp_set_permissions,
+    sftp_sudo_exec, sftp_write_text_file, transfer_entries, SftpState,
 };
 
 const KNOWN_HOSTS_FILE: &str = "ssh_known_hosts";
@@ -362,7 +363,10 @@ pub fn run() {
             fs_remove,
             fs_rename,
             fs_read_text_file,
+            fs_read_image,
             fs_write_text_file,
+            fs_get_properties,
+            fs_set_permissions,
             sftp_connect,
             sftp_disconnect,
             sftp_home_dir,
@@ -373,7 +377,12 @@ pub fn run() {
             sftp_remove,
             sftp_rename,
             sftp_read_text_file,
+            sftp_read_image,
             sftp_write_text_file,
+            sftp_get_properties,
+            sftp_set_permissions,
+            sftp_set_ownership,
+            sftp_sudo_exec,
             cancel_sftp_transfer,
             transfer_entries
         ])

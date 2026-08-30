@@ -1,6 +1,13 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { HostItem } from "@/inventory/types";
-import type { FileContentResult, FsEntry, TransferResult } from "./types";
+import type {
+  FileContentResult,
+  FilePermissionsInfo,
+  FsEntry,
+  ImageContentResult,
+  PermissionMatrix,
+  TransferResult,
+} from "./types";
 import { TRANSFER_CANCELLED_MESSAGE } from "./types";
 
 function asEntries(raw: FsEntry[]): FsEntry[] {
@@ -62,6 +69,13 @@ export async function fsReadTextFile(
   maxBytes?: number,
 ): Promise<FileContentResult> {
   return invoke<FileContentResult>("fs_read_text_file", { path, maxBytes });
+}
+
+export async function fsReadImage(
+  path: string,
+  maxBytes?: number,
+): Promise<ImageContentResult> {
+  return invoke<ImageContentResult>("fs_read_image", { path, maxBytes });
 }
 
 export async function fsWriteTextFile(
@@ -145,6 +159,18 @@ export async function sftpReadTextFile(
   });
 }
 
+export async function sftpReadImage(
+  sessionId: string,
+  path: string,
+  maxBytes?: number,
+): Promise<ImageContentResult> {
+  return invoke<ImageContentResult>("sftp_read_image", {
+    sessionId,
+    path,
+    maxBytes,
+  });
+}
+
 export async function sftpWriteTextFile(
   sessionId: string,
   path: string,
@@ -152,6 +178,142 @@ export async function sftpWriteTextFile(
 ): Promise<void> {
   await invoke("sftp_write_text_file", { sessionId, path, contents });
 }
+
+export async function fsGetProperties(
+  path: string,
+): Promise<FilePermissionsInfo> {
+  return invoke<FilePermissionsInfo>("fs_get_properties", { path });
+}
+
+export async function fsSetPermissions(
+  path: string,
+  mode: number,
+  recursive: boolean = false,
+): Promise<void> {
+  await invoke("fs_set_permissions", { path, mode, recursive });
+}
+
+export async function sftpGetProperties(
+  sessionId: string,
+  path: string,
+): Promise<FilePermissionsInfo> {
+  return invoke<FilePermissionsInfo>("sftp_get_properties", { sessionId, path });
+}
+
+export async function sftpSetPermissions(
+  sessionId: string,
+  path: string,
+  mode: number,
+  recursive: boolean = false,
+): Promise<void> {
+  await invoke("sftp_set_permissions", {
+    sessionId,
+    path,
+    mode,
+    recursive,
+  });
+}
+
+export async function sftpSetOwnership(
+  sessionId: string,
+  path: string,
+  user?: string,
+  group?: string,
+  recursive: boolean = false,
+): Promise<void> {
+  await invoke("sftp_set_ownership", {
+    sessionId,
+    path,
+    user: user || null,
+    group: group || null,
+    recursive,
+  });
+}
+
+export async function sftpSudoExec(
+  sessionId: string,
+  command: string,
+  password?: string,
+): Promise<void> {
+  await invoke("sftp_sudo_exec", {
+    sessionId,
+    command,
+    password: password || null,
+  });
+}
+
+export function modeToMatrix(mode: number): PermissionMatrix {
+  return {
+    owner: {
+      read: Boolean(mode & 0o400),
+      write: Boolean(mode & 0o200),
+      exec: Boolean(mode & 0o100),
+    },
+    group: {
+      read: Boolean(mode & 0o040),
+      write: Boolean(mode & 0o020),
+      exec: Boolean(mode & 0o010),
+    },
+    others: {
+      read: Boolean(mode & 0o004),
+      write: Boolean(mode & 0o002),
+      exec: Boolean(mode & 0o001),
+    },
+  };
+}
+
+export function matrixToMode(matrix: PermissionMatrix, specialBits: number = 0): number {
+  let mode = specialBits & 0o7000;
+  if (matrix.owner.read) mode |= 0o400;
+  if (matrix.owner.write) mode |= 0o200;
+  if (matrix.owner.exec) mode |= 0o100;
+  if (matrix.group.read) mode |= 0o040;
+  if (matrix.group.write) mode |= 0o020;
+  if (matrix.group.exec) mode |= 0o010;
+  if (matrix.others.read) mode |= 0o004;
+  if (matrix.others.write) mode |= 0o002;
+  if (matrix.others.exec) mode |= 0o001;
+  return mode;
+}
+
+export function modeToOctal(mode: number): string {
+  const clean = mode & 0o7777;
+  return clean.toString(8).padStart(4, "0");
+}
+
+export function parseOctalInput(input: string, currentMode: number): number | null {
+  const trimmed = input.trim();
+  if (!/^[0-7]{3,4}$/.test(trimmed)) return null;
+  const parsed = parseInt(trimmed, 8);
+  if (Number.isNaN(parsed) || parsed < 0 || parsed > 0o7777) return null;
+  // If user entered 3 digits (e.g. "755"), preserve any existing special bits if present
+  if (trimmed.length === 3) {
+    const special = currentMode & 0o7000;
+    return special | (parsed & 0o777);
+  }
+  return parsed;
+}
+
+export function modeToSymbolic(mode: number, isDir?: boolean, isSymlink?: boolean): string {
+  const typeChar = isSymlink ? "l" : isDir ? "d" : "-";
+  const rwx: [number, string][] = [
+    [0o400, "r"],
+    [0o200, "w"],
+    [0o100, "x"],
+    [0o040, "r"],
+    [0o020, "w"],
+    [0o010, "x"],
+    [0o004, "r"],
+    [0o002, "w"],
+    [0o001, "x"],
+  ];
+  let res = typeChar;
+  for (const [bit, ch] of rwx) {
+    res += (mode & bit) !== 0 ? ch : "-";
+  }
+  return res;
+}
+
 
 export async function transferEntries(input: {
   transferId: string;

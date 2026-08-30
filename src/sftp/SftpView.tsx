@@ -35,8 +35,10 @@ import {
   type SftpPaneSide,
 } from "./SftpPane";
 import { SftpFileEditorModal } from "./editor/SftpFileEditorModal";
+import { SftpImageViewerModal } from "./image/SftpImageViewerModal";
 import {
   SFTP_TRANSFER_PROGRESS_EVENT,
+  isImageFileName,
   type FsEntry,
   type PaneConnection,
   type TransferProgress,
@@ -247,6 +249,10 @@ export function SftpView({
     connection: PaneConnection;
     side: SftpPaneSide;
   } | null>(null);
+  const [activeImage, setActiveImage] = useState<{
+    entry: FsEntry;
+    connection: PaneConnection;
+  } | null>(null);
 
   const sessionsRef = useRef<Set<string>>(new Set());
   const pendingDragRef = useRef<PendingDrag | null>(null);
@@ -257,9 +263,18 @@ export function SftpView({
 
   useEffect(() => {
     onBlockingDialogChange?.(
-      leftDialogOpen || rightDialogOpen || activeEditor !== null,
+      leftDialogOpen ||
+        rightDialogOpen ||
+        activeEditor !== null ||
+        activeImage !== null,
     );
-  }, [leftDialogOpen, rightDialogOpen, activeEditor, onBlockingDialogChange]);
+  }, [
+    leftDialogOpen,
+    rightDialogOpen,
+    activeEditor,
+    activeImage,
+    onBlockingDialogChange,
+  ]);
 
   useEffect(() => {
     const sessions = sessionsRef.current;
@@ -631,9 +646,13 @@ export function SftpView({
           onDragGrip={(entries, event) => beginEntryDrag("left", entries, event)}
           onStatus={setFeedback}
           onBlockingDialogChange={setLeftDialogOpen}
-          onOpenFile={(entry, connection) =>
-            setActiveEditor({ entry, connection, side: "left" })
-          }
+          onOpenFile={(entry, connection) => {
+            if (isImageFileName(entry.name)) {
+              setActiveImage({ entry, connection });
+            } else {
+              setActiveEditor({ entry, connection, side: "left" });
+            }
+          }}
         />
         <MemoSftpPane
           side="right"
@@ -659,9 +678,13 @@ export function SftpView({
           }
           onStatus={setFeedback}
           onBlockingDialogChange={setRightDialogOpen}
-          onOpenFile={(entry, connection) =>
-            setActiveEditor({ entry, connection, side: "right" })
-          }
+          onOpenFile={(entry, connection) => {
+            if (isImageFileName(entry.name)) {
+              setActiveImage({ entry, connection });
+            } else {
+              setActiveEditor({ entry, connection, side: "right" });
+            }
+          }}
         />
       </div>
 
@@ -704,6 +727,13 @@ export function SftpView({
             bumpRefresh(activeEditor.side);
           }
         }}
+      />
+
+      <SftpImageViewerModal
+        open={activeImage !== null}
+        entry={activeImage?.entry ?? null}
+        connection={activeImage?.connection ?? left}
+        onClose={() => setActiveImage(null)}
       />
     </section>
   );

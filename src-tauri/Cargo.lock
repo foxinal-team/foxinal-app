@@ -1112,6 +1112,7 @@ name = "foxinal"
 version = "1.2.0"
 dependencies = [
  "arboard",
+ "base64 0.22.1",
  "serde",
  "serde_json",
  "ssh2",

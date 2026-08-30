@@ -18,6 +18,8 @@ import {
   IconPencil,
   IconFolderOpen,
   IconCode,
+  IconPhoto,
+  IconShieldLock,
 } from "@tabler/icons-react";
 import {
   type MouseEvent as ReactMouseEvent,
@@ -66,7 +68,8 @@ import {
   sftpRename,
 } from "./api";
 import { SftpHostPicker } from "./SftpHostPicker";
-import type { FsEntry, PaneConnection } from "./types";
+import { SftpPropertiesModal } from "./properties/SftpPropertiesModal";
+import { isImageFileName, type FsEntry, type PaneConnection } from "./types";
 
 export type SftpPaneSide = "left" | "right";
 
@@ -128,6 +131,7 @@ export function SftpPane({
   const [mkdirOpen, setMkdirOpen] = useState(false);
   const [createFileOpen, setCreateFileOpen] = useState(false);
   const [renameTarget, setRenameTarget] = useState<FsEntry | null>(null);
+  const [propertiesTarget, setPropertiesTarget] = useState<FsEntry | null>(null);
   const [contextTarget, setContextTarget] = useState<FsEntry | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const listGenRef = useRef(0);
@@ -139,7 +143,8 @@ export function SftpPane({
       deleteTarget !== null ||
       mkdirOpen ||
       createFileOpen ||
-      renameTarget !== null;
+      renameTarget !== null ||
+      propertiesTarget !== null;
     onBlockingDialogChange?.(open);
     return () => onBlockingDialogChange?.(false);
   }, [
@@ -147,6 +152,7 @@ export function SftpPane({
     mkdirOpen,
     createFileOpen,
     renameTarget,
+    propertiesTarget,
     onBlockingDialogChange,
   ]);
 
@@ -978,7 +984,7 @@ export function SftpPane({
               )}
             </div>
           </ContextMenuTrigger>
-          <ContextMenuContent className="w-48">
+          <ContextMenuContent className="w-56">
             {contextTarget ? (
               <>
                 {contextTarget.kind === "dir" ? (
@@ -987,6 +993,13 @@ export function SftpPane({
                   >
                     <IconFolderOpen size={16} stroke={1.75} aria-hidden />
                     Open
+                  </ContextMenuItem>
+                ) : isImageFileName(contextTarget.name) ? (
+                  <ContextMenuItem
+                    onSelect={() => onOpenFile?.(contextTarget, connection)}
+                  >
+                    <IconPhoto size={16} stroke={1.75} aria-hidden />
+                    View image
                   </ContextMenuItem>
                 ) : (
                   <ContextMenuItem
@@ -1001,6 +1014,12 @@ export function SftpPane({
                 >
                   <IconPencil size={16} stroke={1.75} aria-hidden />
                   Rename
+                </ContextMenuItem>
+                <ContextMenuItem
+                  onSelect={() => setPropertiesTarget(contextTarget)}
+                >
+                  <IconShieldLock size={16} stroke={1.75} aria-hidden />
+                  Properties & Permissions
                 </ContextMenuItem>
                 <ContextMenuItem
                   variant="destructive"
@@ -1098,6 +1117,17 @@ export function SftpPane({
         icon={<IconTrash size={22} stroke={1.75} aria-hidden />}
         confirmIcon={<IconTrash size={16} stroke={1.75} aria-hidden />}
         cancelIcon={<IconX size={16} stroke={1.75} aria-hidden />}
+      />
+
+      <SftpPropertiesModal
+        open={propertiesTarget !== null}
+        onClose={() => setPropertiesTarget(null)}
+        entry={propertiesTarget}
+        connection={connection}
+        hostItem={remoteHost}
+        onPropertiesUpdated={() => {
+          void loadPath(path, { soft: true });
+        }}
       />
     </section>
   );
