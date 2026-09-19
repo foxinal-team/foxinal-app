@@ -31,11 +31,12 @@
 | `[x]` | **Xterm.js WebGL/Canvas Terminal** | Fast native PTY terminal emulator with customizable font family, size, line height, cursor styles, and scrollback limit. | v1.0 |
 | `[x]` | **Local OS Shell & SSH Sessions** | Multi-session tabbed manager supporting local shells and password/key-based SSH connections. | v1.0 |
 | `[x]` | **SSH Host Key Verification & Trust Flow** | Automated known_hosts handling with verification failure dialog and trust reset capability. | v1.1 |
-| `[ ]` | **Terminal Split Panes (Horizontal / Vertical)** | Split terminal views side-by-side or stacked within the same session tab (like tmux/Tabby). | v1.4 |
+| `[x]` | **Terminal Split Panes (Horizontal / Vertical)** | Split terminal views side-by-side or stacked within the same session tab with draggable resizers and active pane focus. | v1.4 |
+| `[x]` | **Terminal Scrollback Search Bar (`Cmd/Ctrl + F`)** | Real-time buffer search with regex, case sensitivity, whole word matching, and jump-to-match navigation. | v1.4 |
+| `[ ]` | **Detach Terminal / Pop-Out Windows (🔥 High Importance)** | Pop out any active terminal or SFTP tab into an independent, multi-window native desktop frame with seamless session detachment and re-attachment. | v1.4 |
 | `[ ]` | **Multi-Exec / Broadcast Input** | Broadcast keystrokes and shell commands simultaneously across multiple selected server tabs. | v1.4 |
 | `[ ]` | **SSH Keep-Alive & Auto-Reconnect** | Configurable `ServerAliveInterval` and seamless reconnection upon Wi-Fi switch or laptop sleep wake. | v1.4 |
 | `[ ]` | **Terminal Session Logging** | Toggle logging raw or formatted session output to local files for audits and compliance. | v1.4 |
-| `[ ]` | **Terminal Scrollback Search Bar (`Cmd/Ctrl + F`)** | Real-time buffer search with regex, case sensitivity, and jump-to-match navigation. | v1.4 |
 | `[ ]` | **Smart Clickable Links & SFTP Editor Jump** | `Cmd/Ctrl + Click` on remote file paths in terminal output to immediately open and edit them in the built-in SFTP editor, plus clickable URLs. | v1.4 |
 | `[ ]` | **Tab Color Tags, Custom Emojis & Renaming** | Right-click any active terminal or SFTP tab to assign custom color tags (e.g., Red for PROD, Green for DEV), emojis, and custom labels. | v1.4 |
 | `[ ]` | **Connect Scripts & Auto-Tmux on Login** | Execute automated startup commands, environment activations, or auto-attach tmux sessions upon connection. | v1.4 |

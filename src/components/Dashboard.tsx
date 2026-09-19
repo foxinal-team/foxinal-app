@@ -48,7 +48,7 @@ import {
 import { APP_VERSION } from "@/lib/version";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { TerminalView } from "@/components/TerminalView";
+import { TerminalSplitHost } from "@/components/TerminalSplitHost";
 import { ConfirmDeleteDialog } from "@/inventory/ConfirmDeleteDialog";
 import { HostDialog } from "@/inventory/HostDialog";
 import { ImportDialog } from "@/inventory/ImportDialog";
@@ -92,9 +92,16 @@ import {
   type InventorySort,
 } from "@/inventory/viewPrefs";
 import {
+  collectLeaves,
   createHostTab,
+  createLeaf,
   createLocalTab,
+  removeLeafFromTree,
+  splitLeafInTree,
+  updateSplitNodeRatio,
   type SessionTab,
+  type SplitDirection,
+  type TerminalSession,
 } from "@/lib/sessions";
 import { SftpView } from "@/sftp/SftpView";
 
@@ -348,6 +355,11 @@ export function Dashboard({
     sortDir,
   ]);
 
+  const allSavedHosts = useMemo(
+    () => items.filter((item): item is HostItem => item.kind === "host"),
+    [items],
+  );
+
   const hasAnyChildren = searchActive
     ? items.some((item) => isDescendantOf(items, item, currentGroupId))
     : currentChildren.length > 0;
@@ -406,6 +418,81 @@ export function Dashboard({
 
       return next;
     });
+  }
+
+  function handleSplitPane(
+    tabId: string,
+    targetPaneId: string,
+    direction: SplitDirection,
+    session: TerminalSession,
+  ) {
+    setTabs((prev) =>
+      prev.map((tab) => {
+        if (tab.id !== tabId) return tab;
+        const currentLayout = tab.layout || createLeaf(tab.session);
+        const { root, newLeafId } = splitLeafInTree(
+          currentLayout,
+          targetPaneId,
+          direction,
+          session,
+        );
+        return {
+          ...tab,
+          layout: root,
+          activePaneId: newLeafId || tab.activePaneId,
+        };
+      }),
+    );
+  }
+
+  function handleClosePane(tabId: string, paneId: string) {
+    setTabs((prev) => {
+      const tabIndex = prev.findIndex((t) => t.id === tabId);
+      if (tabIndex === -1) return prev;
+      const tab = prev[tabIndex];
+      const currentLayout = tab.layout || createLeaf(tab.session);
+      const newLayout = removeLeafFromTree(currentLayout, paneId);
+      if (!newLayout) {
+        closeTab(tabId);
+        return prev.filter((t) => t.id !== tabId);
+      }
+      const remainingLeaves = collectLeaves(newLayout);
+      const nextActiveId =
+        tab.activePaneId === paneId
+          ? remainingLeaves[0]?.id || ""
+          : tab.activePaneId;
+      const nextTabs = [...prev];
+      nextTabs[tabIndex] = {
+        ...tab,
+        layout: newLayout,
+        activePaneId: nextActiveId,
+      };
+      return nextTabs;
+    });
+  }
+
+  function handleUpdateSplitRatio(
+    tabId: string,
+    splitNodeId: string,
+    ratio: number,
+  ) {
+    setTabs((prev) =>
+      prev.map((tab) => {
+        if (tab.id !== tabId || !tab.layout) return tab;
+        return {
+          ...tab,
+          layout: updateSplitNodeRatio(tab.layout, splitNodeId, ratio),
+        };
+      }),
+    );
+  }
+
+  function handleSetActivePane(tabId: string, paneId: string) {
+    setTabs((prev) =>
+      prev.map((tab) =>
+        tab.id === tabId ? { ...tab, activePaneId: paneId } : tab,
+      ),
+    );
   }
 
   function openDuplicateHost(host: HostItem) {
@@ -821,11 +908,15 @@ export function Dashboard({
                   aria-hidden={!paneActive}
                   inert={!paneActive ? true : undefined}
                 >
-                  <TerminalView
-                    session={tab.session}
-                    sessionId={tab.id}
+                  <TerminalSplitHost
+                    tab={tab}
                     active={paneActive}
-                    onCloseSession={() => closeTab(tab.id)}
+                    hosts={allSavedHosts}
+                    onCloseTab={() => closeTab(tab.id)}
+                    onSplitPane={handleSplitPane}
+                    onClosePane={handleClosePane}
+                    onSetActivePane={handleSetActivePane}
+                    onUpdateRatio={handleUpdateSplitRatio}
                     terminalPrefs={terminalPrefs}
                     appTheme={theme}
                   />

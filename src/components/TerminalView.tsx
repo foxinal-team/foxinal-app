@@ -2,13 +2,25 @@ import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
+import { SearchAddon } from "@xterm/addon-search";
 import { spawn, type IPty } from "tauri-pty";
 import {
+  IconChevronLeft,
+  IconChevronRight,
+  IconLayoutColumns,
+  IconLayoutRows,
+  IconMaximize,
+  IconMinimize,
   IconPlugConnected,
+  IconSearch,
   IconTerminal2,
   IconX,
 } from "@tabler/icons-react";
 import { ConnectionOverlay } from "@/components/ConnectionOverlay";
+import {
+  TerminalSearchBar,
+  type SearchOptions,
+} from "@/components/TerminalSearchBar";
 import { Button } from "@/components/ui/button";
 import { hostSummary } from "@/inventory/types";
 import type { TerminalSession } from "@/lib/sessions";
@@ -35,9 +47,21 @@ type ConnPhase = "connecting" | "ready" | "error";
 
 type TerminalViewProps = {
   session: TerminalSession;
-  /** Stable tab id — keeps each PTY instance independent across remounts. */
+  /** Stable tab / pane id — keeps each PTY instance independent across remounts. */
   sessionId: string;
   active?: boolean;
+  isFocusedPane?: boolean;
+  onFocusPane?: () => void;
+  isSplitView?: boolean;
+  canMaximize?: boolean;
+  isMaximized?: boolean;
+  onToggleMaximize?: () => void;
+  paneIndex?: number;
+  paneCount?: number;
+  onNavigateNextPane?: () => void;
+  onNavigatePrevPane?: () => void;
+  onSplitVertical?: () => void;
+  onSplitHorizontal?: () => void;
   onCloseSession?: () => void;
   terminalPrefs: TerminalPrefs;
   appTheme: string;
@@ -155,16 +179,38 @@ function looksLikeShellReady(buffer: string): boolean {
   return /[%$#~>]\s*$/.test(last) || /@[^:\s]+:[^\n]*[#$]\s*$/.test(last);
 }
 
+// Persistent cache for pane UI / search state across layout reorganizations
+type PaneUiState = {
+  searchOpen: boolean;
+  searchQuery: string;
+  searchOptions: SearchOptions;
+};
+
+const paneUiCache = new Map<string, PaneUiState>();
+
 export function TerminalView({
   session,
   sessionId,
   active = true,
+  isFocusedPane = true,
+  onFocusPane,
+  isSplitView = false,
+  canMaximize = false,
+  isMaximized = false,
+  onToggleMaximize,
+  paneIndex,
+  paneCount,
+  onNavigateNextPane,
+  onNavigatePrevPane,
+  onSplitVertical,
+  onSplitHorizontal,
   onCloseSession,
   terminalPrefs,
   appTheme,
 }: TerminalViewProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
+  const searchRef = useRef<SearchAddon | null>(null);
   const ptyRef = useRef<IPty | null>(null);
   const termRef = useRef<Terminal | null>(null);
   const prefsRef = useRef(terminalPrefs);
@@ -180,7 +226,60 @@ export function TerminalView({
   /** True once an SSH session reached ready — exit then means reconnect, not first-connect retry. */
   const [canReconnect, setCanReconnect] = useState(false);
 
-  // One PTY lifecycle per tab — never share keys across local shells or same-host SSH tabs.
+  // Search Bar persistent state
+  const cachedUi = paneUiCache.get(sessionId);
+  const [searchOpen, setSearchOpen] = useState(cachedUi?.searchOpen ?? false);
+  const [savedSearchQuery, setSavedSearchQuery] = useState(
+    cachedUi?.searchQuery ?? "",
+  );
+  const [savedSearchOptions, setSavedSearchOptions] = useState(
+    cachedUi?.searchOptions,
+  );
+  const [matchCount, setMatchCount] = useState<{
+    current: number;
+    total: number;
+  } | null>(null);
+
+  const handleOpenSearch = () => {
+    setSearchOpen(true);
+    paneUiCache.set(sessionId, {
+      searchOpen: true,
+      searchQuery: savedSearchQuery,
+      searchOptions: savedSearchOptions || {
+        caseSensitive: false,
+        wholeWord: false,
+        regex: false,
+      },
+    });
+  };
+
+  const handleCloseSearch = () => {
+    setSearchOpen(false);
+    setMatchCount(null);
+    paneUiCache.set(sessionId, {
+      searchOpen: false,
+      searchQuery: "",
+      searchOptions: savedSearchOptions || {
+        caseSensitive: false,
+        wholeWord: false,
+        regex: false,
+      },
+    });
+    searchRef.current?.clearDecorations?.();
+    termRef.current?.focus();
+  };
+
+  const handleSearchStateChange = (q: string, opts: SearchOptions) => {
+    setSavedSearchQuery(q);
+    setSavedSearchOptions(opts);
+    paneUiCache.set(sessionId, {
+      searchOpen: true,
+      searchQuery: q,
+      searchOptions: opts,
+    });
+  };
+
+  // One PTY lifecycle per pane/tab
   const sessionKey = sessionId;
 
   useEffect(() => {
@@ -191,6 +290,7 @@ export function TerminalView({
     let pty: IPty | null = null;
     let term: Terminal | null = null;
     let fitAddon: FitAddon | null = null;
+    let searchAddon: SearchAddon | null = null;
     let resizeObserver: ResizeObserver | null = null;
     let cleanupPaths: string[] = [];
     let connectTimer: number | undefined;
@@ -266,12 +366,25 @@ export function TerminalView({
           theme: resolveTerminalTheme(prefs.theme, appThemeRef.current),
           allowProposedApi: true,
         });
+
         fitAddon = new FitAddon();
+        searchAddon = new SearchAddon();
         term.loadAddon(fitAddon);
+        term.loadAddon(searchAddon);
+
+        searchAddon.onDidChangeResults?.((e: { resultIndex: number; resultCount: number }) => {
+          if (e.resultIndex !== undefined && e.resultCount !== undefined) {
+            setMatchCount({ current: e.resultIndex + 1, total: e.resultCount });
+          } else {
+            setMatchCount(null);
+          }
+        });
+
         term.open(hostEl);
         fitAddon.fit();
         termRef.current = term;
         fitRef.current = fitAddon;
+        searchRef.current = searchAddon;
 
         const savedPassword =
           session.kind === "ssh" &&
@@ -314,9 +427,6 @@ export function TerminalView({
           pty.write(text.replace(/\r\n/g, "\r").replace(/\n/g, "\r"));
         };
 
-        // Prefer browser `paste` (clipboardData). Only fall back to native
-        // clipboard if no paste event arrives — arboard can hang the UI on Linux
-        // when called on every Ctrl+Shift+V.
         let pasteFallbackTimer: number | undefined;
         let expectPasteEvent = false;
 
@@ -347,9 +457,16 @@ export function TerminalView({
         term.attachCustomKeyEventHandler((ev) => {
           if (ev.type !== "keydown") return true;
 
-          // Allow app shortcuts like ⌘K (Command Palette) and ⌘, (Settings) to bubble
           const key = ev.key.toLowerCase();
+
+          // Command Palette (⌘K) & Settings (⌘,)
           if ((ev.metaKey || ev.ctrlKey) && !ev.altKey && !ev.shiftKey && (key === "k" || key === ",")) {
+            return false;
+          }
+
+          // Search buffer (⌘F / Ctrl+F)
+          if ((ev.metaKey || ev.ctrlKey) && !ev.altKey && !ev.shiftKey && key === "f") {
+            handleOpenSearch();
             return false;
           }
 
@@ -467,7 +584,6 @@ export function TerminalView({
               return;
             }
 
-            // Session was live — offer reconnect instead of a dead terminal.
             const sshError = extractSshError(outputBuffer);
             markError(
               sshError ||
@@ -480,17 +596,25 @@ export function TerminalView({
           }),
         );
 
+        let resizeRaf: number | null = null;
         const syncSize = () => {
           if (!term || !fitAddon || !pty) return;
-          fitAddon.fit();
-          pty.resize(term.cols, term.rows);
+          if (resizeRaf !== null) cancelAnimationFrame(resizeRaf);
+          resizeRaf = requestAnimationFrame(() => {
+            if (!term || !fitAddon || !pty) return;
+            fitAddon.fit();
+            pty.resize(term.cols, term.rows);
+          });
         };
 
         resizeObserver = new ResizeObserver(() => syncSize());
         resizeObserver.observe(hostEl);
         window.addEventListener("resize", syncSize);
         disposables.push({
-          dispose: () => window.removeEventListener("resize", syncSize),
+          dispose: () => {
+            if (resizeRaf !== null) cancelAnimationFrame(resizeRaf);
+            window.removeEventListener("resize", syncSize);
+          },
         });
 
         if (!isSsh) {
@@ -523,6 +647,7 @@ export function TerminalView({
       term?.dispose();
       termRef.current = null;
       fitRef.current = null;
+      searchRef.current = null;
       ptyRef.current = null;
       if (cleanupPaths.length > 0) {
         void invoke("cleanup_ssh_temp", { paths: cleanupPaths }).catch(
@@ -551,7 +676,7 @@ export function TerminalView({
   }, [terminalPrefs, appTheme]);
 
   useEffect(() => {
-    if (!active || phase !== "ready") return;
+    if (!active || !isFocusedPane || phase !== "ready") return;
     const fitAddon = fitRef.current;
     const pty = ptyRef.current;
     const term = termRef.current;
@@ -562,7 +687,46 @@ export function TerminalView({
       pty.resize(term.cols, term.rows);
       term.focus();
     });
-  }, [active, phase, attempt]);
+  }, [active, isFocusedPane, phase, attempt]);
+
+  const handleSearch = (query: string, opts: SearchOptions) => {
+    if (!searchRef.current || !query) {
+      searchRef.current?.clearDecorations?.();
+      setMatchCount(null);
+      return;
+    }
+    searchRef.current.findNext(query, {
+      caseSensitive: opts.caseSensitive,
+      wholeWord: opts.wholeWord,
+      regex: opts.regex,
+      decorations: {
+        matchBackground: "rgba(234, 88, 12, 0.35)",
+        matchBorder: "rgba(234, 88, 12, 0.75)",
+        matchOverviewRuler: "rgba(234, 88, 12, 0.75)",
+        activeMatchBackground: "rgba(234, 88, 12, 0.75)",
+        activeMatchBorder: "#f97316",
+        activeMatchColorOverviewRuler: "#f97316",
+      },
+    });
+  };
+
+  const handleFindNext = (query: string, opts: SearchOptions) => {
+    if (!searchRef.current || !query) return;
+    searchRef.current.findNext(query, {
+      caseSensitive: opts.caseSensitive,
+      wholeWord: opts.wholeWord,
+      regex: opts.regex,
+    });
+  };
+
+  const handleFindPrevious = (query: string, opts: SearchOptions) => {
+    if (!searchRef.current || !query) return;
+    searchRef.current.findPrevious(query, {
+      caseSensitive: opts.caseSensitive,
+      wholeWord: opts.wholeWord,
+      regex: opts.regex,
+    });
+  };
 
   const title =
     session.kind === "local"
@@ -598,7 +762,7 @@ export function TerminalView({
         port: session.host.port,
       });
     } catch {
-      // Still retry — prepare_ssh_launch may accept-new on a clean file.
+      // Still retry
     }
     retry();
   }
@@ -606,49 +770,185 @@ export function TerminalView({
   return (
     <section
       className={cn(
-        "flex w-full min-h-0 flex-1 flex-col gap-[0.65rem]",
-        active &&
-          "motion-safe:animate-[panel-rise_0.4s_var(--ease-fox)_both]",
+        "flex w-full min-h-0 flex-1 flex-col relative",
+        isSplitView ? "p-2.5 gap-2" : "gap-[0.45rem]",
+        !isSplitView &&
+          active &&
+          "motion-safe:animate-[panel-rise_0.3s_var(--ease-fox)_both]",
       )}
       aria-hidden={!active}
       inert={!active ? true : undefined}
+      onFocus={onFocusPane}
+      onClick={onFocusPane}
     >
-      <div className="flex shrink-0 items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-[0.65rem]">
+      <div
+        className={cn(
+          "flex shrink-0 items-center justify-between gap-3",
+          isSplitView && "px-1",
+        )}
+      >
+        <div className="flex min-w-0 items-center gap-[0.55rem]">
           <span
-            className="grid size-(--control-h) shrink-0 place-items-center rounded-(--radius-sm) bg-fox/12 text-fox"
+            className={cn(
+              "grid shrink-0 place-items-center rounded-(--radius-sm) bg-fox/12 text-fox",
+              isSplitView ? "size-7" : "size-(--control-h)",
+            )}
             aria-hidden
           >
             {session.kind === "local" ? (
-              <IconTerminal2 size={18} stroke={1.75} />
+              <IconTerminal2 size={isSplitView ? 16 : 18} stroke={1.75} />
             ) : (
-              <IconPlugConnected size={18} stroke={1.75} />
+              <IconPlugConnected size={isSplitView ? 16 : 18} stroke={1.75} />
             )}
           </span>
           <div className="min-w-0">
-            <p className="m-0 font-(family-name:--font-brand) text-[0.95rem] font-bold tracking-tight text-ink">
+            <p
+              className={cn(
+                "m-0 font-(family-name:--font-brand) font-bold tracking-tight text-ink",
+                isSplitView ? "text-[0.88rem]" : "text-[0.95rem]",
+              )}
+            >
               {title}
             </p>
-            <p className="m-0 mt-px overflow-hidden text-ellipsis whitespace-nowrap text-xs text-ink-muted">
-              {subtitle}
-            </p>
+            {!isSplitView && (
+              <p className="m-0 mt-px overflow-hidden text-ellipsis whitespace-nowrap text-xs text-ink-muted">
+                {subtitle}
+              </p>
+            )}
           </div>
         </div>
-        {onCloseSession ? (
+
+        {/* Full-screen pane switcher indicator */}
+        {isMaximized && paneCount && paneCount > 1 ? (
+          <div className="flex items-center gap-0.5 rounded-(--radius-sm) border border-line/70 bg-surface-elevated/70 px-1 py-0.5 text-xs text-ink shadow-(--shadow-xs)">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              onClick={onNavigatePrevPane}
+              title="Previous split pane"
+              aria-label="Previous split pane"
+              className="size-5 rounded text-ink-muted hover:bg-surface-hover hover:text-ink cursor-pointer"
+            >
+              <IconChevronLeft size={13} stroke={2} />
+            </Button>
+
+            <span className="font-mono text-[11px] text-ink font-semibold px-1.5 select-none">
+              {paneIndex} of {paneCount}
+            </span>
+
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              onClick={onNavigateNextPane}
+              title="Next split pane"
+              aria-label="Next split pane"
+              className="size-5 rounded text-ink-muted hover:bg-surface-hover hover:text-ink cursor-pointer"
+            >
+              <IconChevronRight size={13} stroke={2} />
+            </Button>
+          </div>
+        ) : null}
+
+        <div className="flex items-center gap-1">
+          {onSplitVertical ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              aria-label="Split Right"
+              title="Split Right (Side-by-side)"
+              onClick={onSplitVertical}
+              className="size-7 p-0 text-ink-muted hover:bg-surface-hover hover:text-ink"
+            >
+              <IconLayoutColumns size={16} stroke={1.75} />
+            </Button>
+          ) : null}
+
+          {onSplitHorizontal ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              aria-label="Split Down"
+              title="Split Down (Stacked)"
+              onClick={onSplitHorizontal}
+              className="size-7 p-0 text-ink-muted hover:bg-surface-hover hover:text-ink"
+            >
+              <IconLayoutRows size={16} stroke={1.75} />
+            </Button>
+          ) : null}
+
+          {canMaximize && onToggleMaximize ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              aria-label={isMaximized ? "Restore Split View" : "Maximize Pane"}
+              title={
+                isMaximized
+                  ? "Restore Split View"
+                  : "Maximize Pane (Full Screen)"
+              }
+              onClick={onToggleMaximize}
+              className="size-7 p-0 text-ink-muted hover:bg-surface-hover hover:text-ink"
+            >
+              {isMaximized ? (
+                <IconMinimize size={16} stroke={1.75} />
+              ) : (
+                <IconMaximize size={16} stroke={1.75} />
+              )}
+            </Button>
+          ) : null}
+
           <Button
             type="button"
-            variant="secondary"
+            variant="ghost"
             size="sm"
-            aria-label={`Close ${title}`}
-            onClick={onCloseSession}
+            aria-label="Search buffer (Cmd+F)"
+            title="Search buffer (Cmd+F / Ctrl+F)"
+            onClick={handleOpenSearch}
+            className="size-7 p-0 text-ink-muted hover:bg-surface-hover hover:text-ink"
           >
-            <IconX size={16} stroke={1.75} aria-hidden />
-            <span>Close</span>
+            <IconSearch size={16} stroke={1.75} />
           </Button>
-        ) : null}
+
+          {onCloseSession ? (
+            <Button
+              type="button"
+              variant={isSplitView ? "ghost" : "secondary"}
+              size="sm"
+              aria-label={`Close ${title}`}
+              title={`Close ${title}`}
+              onClick={onCloseSession}
+              className={
+                isSplitView
+                  ? "size-7 p-0 text-ink-muted hover:bg-surface-hover hover:text-ink"
+                  : "h-7 px-2 text-xs"
+              }
+            >
+              <IconX size={15} stroke={1.75} aria-hidden />
+              {!isSplitView && <span>Close</span>}
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       <div className="relative flex min-h-0 flex-1 flex-col">
+        {/* Floating Search Bar Overlay */}
+        <TerminalSearchBar
+          isOpen={searchOpen}
+          initialQuery={savedSearchQuery}
+          initialOptions={savedSearchOptions}
+          onClose={handleCloseSearch}
+          onSearch={handleSearch}
+          onFindNext={handleFindNext}
+          onFindPrevious={handleFindPrevious}
+          matchCount={matchCount}
+          onStateChange={handleSearchStateChange}
+        />
+
         {phase === "connecting" && host ? (
           <ConnectionOverlay
             variant="connecting"

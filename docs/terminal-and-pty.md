@@ -48,6 +48,33 @@ Terminal styling and behavior is configured in [`src/settings/terminalPrefs.ts`]
 
 ---
 
+## Split Panes & Recursive Nested Tiling
+
+Each session tab supports arbitrary, recursive binary tree pane splitting:
+- **Binary Split Tree Architecture**: Panes are structured in a binary tree (`TerminalLayoutNode` with `leaf` and `split` nodes).
+- **Targeted Splitting**: Splitting vertically or horizontally splits **only the active pane** clicked, leaving all sibling and parent splits intact.
+- **Independent PTY Lifecycle**: Each pane maintains its own stable `paneId`, PTY spawn process, and output buffer.
+- **Draggable Resizers per Branch**: Smooth divider drag handles allow dynamic resizing of ratios (20%–80%) on each specific branch independently.
+- **Automatic 50% Reset**: When panes are closed and a branch collapses or resets, newly created splits always default to a clean 50/50 balance.
+- **Maximized Mode with Paging**: Any pane in a complex tiling layout can be maximized to 100% full screen with prev/next chevron navigation to cycle through all other panes in the tab.
+- **Active Focus Ring**: Active pane is outlined with Foxinal accent styling (`ring-fox/60`) and receives keyboard focus.
+
+---
+
+## Buffer Search (`Cmd/Ctrl + F`)
+
+Powered by `@xterm/addon-search`:
+- **Keyboard Trigger**: Press `Cmd + F` (macOS) or `Ctrl + F` (Linux/Windows) inside any terminal pane.
+- **Controls**:
+  - `Enter` / `Shift + Enter`: Jump to next / previous match.
+  - `Aa`: Toggle case-sensitivity.
+  - `\b`: Toggle whole-word matching.
+  - `.*`: Toggle regular expression mode.
+  - `Esc`: Close search and return focus to the active terminal.
+
+---
+
 ## Related Documentation
 - [System Architecture](file:///Users/danial/Documents/Projects/foxinal/docs/architecture.md)
 - [Security & Vault](file:///Users/danial/Documents/Projects/foxinal/docs/security-and-vault.md)
+
