@@ -14,6 +14,7 @@ node_modules
 # Frontend build / cache
 dist
 dist-ssr
+coverage
 .vite
 *.tsbuildinfo
 *.local

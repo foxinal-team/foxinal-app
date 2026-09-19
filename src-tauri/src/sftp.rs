@@ -2777,10 +2777,13 @@ mod tests {
     #[test]
     fn test_assert_safe_remote_delete() {
         assert!(assert_safe_remote_delete("/").is_err());
+        assert!(assert_safe_remote_delete("///").is_err());
         assert!(assert_safe_remote_delete("  ").is_err());
         assert!(assert_safe_remote_delete(".").is_err());
         assert!(assert_safe_remote_delete("..").is_err());
+        assert!(assert_safe_remote_delete("   /   ").is_err());
         assert!(assert_safe_remote_delete("/tmp/test_dir").is_ok());
+        assert!(assert_safe_remote_delete("/tmp/test_dir/").is_ok());
         assert!(assert_safe_remote_delete("/home/user/file.txt").is_ok());
     }
 
@@ -2910,6 +2913,72 @@ mod tests {
         assert_eq!(guess_image_mime("favicon.ico"), "image/x-icon");
         assert_eq!(guess_image_mime("image.avif"), "image/avif");
         assert_eq!(guess_image_mime("file.pdf"), "application/octet-stream");
+    }
+
+    #[test]
+    fn test_fs_local_crud_workflow() {
+        tauri::async_runtime::block_on(async {
+            let temp_dir = std::env::temp_dir().join(format!("foxinal-fs-test-{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+            let _ = fs::create_dir_all(&temp_dir);
+
+            // 1. fs_home_dir
+            let home = fs_home_dir();
+            assert!(home.is_ok());
+            assert!(!home.unwrap().is_empty());
+
+            // 2. fs_mkdir
+            let sub_dir = temp_dir.join("subfolder");
+            let mkdir_res = fs_mkdir(sub_dir.to_string_lossy().to_string()).await;
+            assert!(mkdir_res.is_ok());
+            assert!(sub_dir.is_dir());
+
+            // 3. fs_create_file
+            let file_path = sub_dir.join("empty.txt");
+            let create_res = fs_create_file(file_path.to_string_lossy().to_string()).await;
+            assert!(create_res.is_ok());
+            assert!(file_path.is_file());
+
+            // 4. fs_list_dir
+            let list = fs_list_dir(sub_dir.to_string_lossy().to_string()).await.expect("list should succeed");
+            assert_eq!(list.len(), 1);
+            assert_eq!(list[0].name, "empty.txt");
+            assert_eq!(list[0].kind, "file");
+
+            // 5. fs_rename
+            let renamed_path = sub_dir.join("renamed.txt");
+            let rename_res = fs_rename(file_path.to_string_lossy().to_string(), renamed_path.to_string_lossy().to_string()).await;
+            assert!(rename_res.is_ok());
+            assert!(!file_path.exists());
+            assert!(renamed_path.exists());
+
+            // 6. fs_get_properties
+            let props = fs_get_properties(renamed_path.to_string_lossy().to_string()).await.expect("props should succeed");
+            assert_eq!(props.name, "renamed.txt");
+            assert!(!props.is_dir);
+
+            // 7. fs_parent_dir
+            let parent = fs_parent_dir(sub_dir.to_string_lossy().to_string()).expect("parent should succeed");
+            assert_eq!(std::path::PathBuf::from(&parent), temp_dir);
+
+            // 8. fs_remove
+            let remove_file_res = fs_remove(renamed_path.to_string_lossy().to_string()).await;
+            assert!(remove_file_res.is_ok());
+            assert!(!renamed_path.exists());
+
+            let remove_dir_res = fs_remove(sub_dir.to_string_lossy().to_string()).await;
+            assert!(remove_dir_res.is_ok());
+            assert!(!sub_dir.exists());
+
+            let _ = fs::remove_dir_all(&temp_dir);
+        });
+    }
+
+    #[test]
+    fn test_shell_quote_special_characters() {
+        assert_eq!(shell_quote(""), "''");
+        assert_eq!(shell_quote("var$FOO"), "'var$FOO'");
+        assert_eq!(shell_quote("\"quoted\""), "'\"quoted\"'");
+        assert_eq!(shell_quote("a\\b"), "'a\\b'");
     }
 }
 

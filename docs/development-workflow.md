@@ -30,11 +30,22 @@ pnpm dev
 
 ### Testing
 ```bash
+# Run all frontend tests (Vitest + React Testing Library)
+pnpm test
+
+# Run frontend tests with coverage report (v8 coverage)
+pnpm test:coverage
+
+# Run frontend tests in interactive watch mode
+pnpm test:watch
+
 # Run Rust backend unit tests
 pnpm test:rust
 # or directly via cargo:
 cargo test --manifest-path src-tauri/Cargo.toml
 ```
+
+Frontend unit tests enforce strict code quality thresholds (minimum 80% line and function coverage) across inventory management, vault encryption, SFTP client APIs, terminal sessions, and core dialogs.
 
 ### Building & Packaging
 ```bash

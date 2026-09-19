@@ -170,6 +170,48 @@ fn prepare_ssh_launch(
             .map_err(|e| format!("Could not create known_hosts file: {e}"))?;
     }
 
+    let mut cleanup_paths = Vec::new();
+    let temp_key_path = if auth_method == "key" {
+        let key = private_key.trim();
+        if key.is_empty() {
+            return Err("Private key is empty.".into());
+        }
+        let path = write_temp_private_key(key)?;
+        cleanup_paths.push(path.display().to_string());
+        Some(path)
+    } else {
+        None
+    };
+
+    let args = build_ssh_launch_args(
+        port,
+        &known_hosts,
+        global_known_hosts_null(),
+        &auth_method,
+        temp_key_path.as_deref(),
+        username,
+        address,
+    );
+
+    let env = HashMap::new();
+
+    Ok(SshLaunch {
+        program,
+        args,
+        env,
+        cleanup_paths,
+    })
+}
+
+fn build_ssh_launch_args(
+    port: u16,
+    known_hosts: &std::path::Path,
+    global_known_hosts: &str,
+    auth_method: &str,
+    temp_key_path: Option<&std::path::Path>,
+    username: &str,
+    address: &str,
+) -> Vec<String> {
     let mut args = vec![
         "-p".to_string(),
         port.to_string(),
@@ -178,8 +220,7 @@ fn prepare_ssh_launch(
         "-o".to_string(),
         format!("UserKnownHostsFile={}", known_hosts.display()),
         "-o".to_string(),
-        format!("GlobalKnownHostsFile={}", global_known_hosts_null()),
-        // Keep idle sessions alive when Foxinal is backgrounded (NAT / server idle kills).
+        format!("GlobalKnownHostsFile={}", global_known_hosts),
         "-o".to_string(),
         "ServerAliveInterval=30".to_string(),
         "-o".to_string(),
@@ -189,23 +230,14 @@ fn prepare_ssh_launch(
         "-tt".to_string(),
     ];
 
-    let env = HashMap::new();
-    let mut cleanup_paths = Vec::new();
-
     if auth_method == "key" {
-        let key = private_key.trim();
-        if key.is_empty() {
-            return Err("Private key is empty.".into());
+        if let Some(path) = temp_key_path {
+            args.push("-i".to_string());
+            args.push(path.display().to_string());
+            args.push("-o".to_string());
+            args.push("IdentitiesOnly=yes".to_string());
         }
-
-        let path = write_temp_private_key(key)?;
-        args.push("-i".to_string());
-        args.push(path.display().to_string());
-        args.push("-o".to_string());
-        args.push("IdentitiesOnly=yes".to_string());
-        cleanup_paths.push(path.display().to_string());
     } else {
-        // Password is injected by the frontend when the PTY shows a password prompt.
         args.push("-o".to_string());
         args.push("PreferredAuthentications=password,keyboard-interactive".to_string());
         args.push("-o".to_string());
@@ -215,13 +247,7 @@ fn prepare_ssh_launch(
     }
 
     args.push(format!("{username}@{address}"));
-
-    Ok(SshLaunch {
-        program,
-        args,
-        env,
-        cleanup_paths,
-    })
+    args
 }
 
 #[tauri::command]
@@ -495,6 +521,71 @@ mod tests {
     fn test_read_text_file_validation() {
         assert!(read_text_file("".into()).is_err());
         assert!(read_text_file("/non/existent/path/foxinal.json".into()).is_err());
+
+        // A directory path should also error
+        let temp = std::env::temp_dir();
+        let dir_err = read_text_file(temp.to_string_lossy().to_string());
+        assert!(dir_err.is_err());
+    }
+
+    #[test]
+    fn test_build_ssh_launch_args_password() {
+        let known_hosts = std::path::Path::new("/tmp/known_hosts");
+        let args = build_ssh_launch_args(
+            22,
+            known_hosts,
+            "/dev/null",
+            "password",
+            None,
+            "ubuntu",
+            "10.0.0.1",
+        );
+
+        assert!(args.contains(&"-p".to_string()));
+        assert!(args.contains(&"22".to_string()));
+        assert!(args.contains(&"UserKnownHostsFile=/tmp/known_hosts".to_string()));
+        assert!(args.contains(&"ServerAliveInterval=30".to_string()));
+        assert!(args.contains(&"PreferredAuthentications=password,keyboard-interactive".to_string()));
+        assert_eq!(args.last().unwrap(), "ubuntu@10.0.0.1");
+    }
+
+    #[test]
+    fn test_build_ssh_launch_args_key() {
+        let known_hosts = std::path::Path::new("/tmp/known_hosts");
+        let key_path = std::path::Path::new("/tmp/test.key");
+        let args = build_ssh_launch_args(
+            2222,
+            known_hosts,
+            "/dev/null",
+            "key",
+            Some(key_path),
+            "admin",
+            "server.com",
+        );
+
+        assert!(args.contains(&"2222".to_string()));
+        assert!(args.contains(&"-i".to_string()));
+        assert!(args.contains(&"/tmp/test.key".to_string()));
+        assert!(args.contains(&"IdentitiesOnly=yes".to_string()));
+        assert_eq!(args.last().unwrap(), "admin@server.com");
+    }
+
+    #[test]
+    fn test_unique_download_path_multiple_conflicts() {
+        let temp_dir = std::env::temp_dir().join(format!("foxinal-test-multi-{}", uuid_like()));
+        let _ = fs::create_dir_all(&temp_dir);
+
+        let f0 = temp_dir.join("export.json");
+        let f1 = temp_dir.join("export (1).json");
+        let f2 = temp_dir.join("export (2).json");
+        let _ = fs::write(&f0, "{}");
+        let _ = fs::write(&f1, "{}");
+        let _ = fs::write(&f2, "{}");
+
+        let candidate = unique_download_path(&temp_dir, "export.json");
+        assert_eq!(candidate.file_name().unwrap(), "export (3).json");
+
+        let _ = fs::remove_dir_all(&temp_dir);
     }
 }
 

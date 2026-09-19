@@ -1,4 +1,5 @@
-const STORAGE_KEY = "foxinal-master-password";
+export const MASTER_PASSWORD_STORAGE_KEY = "foxinal-master-password";
+const STORAGE_KEY = MASTER_PASSWORD_STORAGE_KEY;
 export const ITERATIONS = 100_000;
 const MIN_LENGTH = 8;
 
