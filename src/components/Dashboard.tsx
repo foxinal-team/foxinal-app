@@ -1,4 +1,6 @@
 import {
+  IconArrowBackUp,
+  IconArrowUpRight,
   IconCheck,
   IconChevronRight,
   IconCopy,
@@ -25,6 +27,17 @@ import {
   IconUpload,
   IconX,
 } from "@tabler/icons-react";
+import { listen } from "@tauri-apps/api/event";
+import {
+  openDetachedWindow,
+  focusDetachedWindow,
+  closeDetachedWindow,
+  savePopoutTabData,
+  loadPopoutTabData,
+  clearPopoutTabData,
+  REATTACH_EVENT,
+  type ReattachPayload,
+} from "@/lib/popout";
 import {
   type PointerEvent as ReactPointerEvent,
   useEffect,
@@ -173,6 +186,9 @@ export function Dashboard({
   const [view, setView] = useState<DashboardView>("dashboard");
   const [tabs, setTabs] = useState<SessionTab[]>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
+  const [detachedTabIds, setDetachedTabIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [createGroupOpen, setCreateGroupOpen] = useState(false);
   const [createHostOpen, setCreateHostOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -399,7 +415,86 @@ export function Dashboard({
     setView("session");
   }
 
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    listen<ReattachPayload>(REATTACH_EVENT, (event) => {
+      const payload = event.payload;
+      if (!payload || !payload.tabId) return;
+      const { tabId, tab: incomingTab } = payload;
+      const latestTab = incomingTab || loadPopoutTabData(tabId);
+
+      setDetachedTabIds((prev) => {
+        const next = new Set(prev);
+        next.delete(tabId);
+        return next;
+      });
+
+      if (latestTab) {
+        setTabs((prev) => prev.map((t) => (t.id === tabId ? latestTab : t)));
+      }
+      clearPopoutTabData(tabId);
+      setActiveTabId(tabId);
+      setView("session");
+      toast.success(
+        `Session "${latestTab?.title ?? "Terminal"}" re-attached.`,
+      );
+    })
+      .then((fn) => {
+        unlisten = fn;
+      })
+      .catch((err) => {
+        console.error("Failed to listen for reattach event:", err);
+      });
+
+    return () => {
+      if (unlisten) unlisten();
+    };
+  }, []);
+
+  async function handleDetachTab(tab: SessionTab) {
+    try {
+      savePopoutTabData(tab.id, tab);
+      await openDetachedWindow(tab);
+      setDetachedTabIds((prev) => new Set(prev).add(tab.id));
+      toast.info(`Tab "${tab.title}" popped out into separate window.`);
+    } catch (err) {
+      toast.error(`Failed to pop out window: ${String(err)}`);
+    }
+  }
+
+  async function handleReattachTab(tabId: string) {
+    const latestTab = loadPopoutTabData(tabId);
+    setDetachedTabIds((prev) => {
+      const next = new Set(prev);
+      next.delete(tabId);
+      return next;
+    });
+
+    if (latestTab) {
+      setTabs((prev) => prev.map((t) => (t.id === tabId ? latestTab : t)));
+    }
+    clearPopoutTabData(tabId);
+    closeDetachedWindow(tabId).catch(() => {});
+    selectTab(tabId);
+    toast.success(
+      `Session "${latestTab?.title ?? "Terminal"}" re-attached.`,
+    );
+  }
+
+  function handleFocusDetachedTab(tabId: string) {
+    focusDetachedWindow(tabId).catch(() => {});
+  }
+
   function closeTab(id: string) {
+    if (detachedTabIds.has(id)) {
+      closeDetachedWindow(id).catch(() => {});
+      clearPopoutTabData(id);
+      setDetachedTabIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
     setTabs((prev) => {
       const index = prev.findIndex((tab) => tab.id === id);
       if (index === -1) return prev;
@@ -834,13 +929,14 @@ export function Dashboard({
             }}
           >            {tabs.map((tab) => {
               const selected = tab.id === activeTab?.id && view === "session";
+              const isDetached = detachedTabIds.has(tab.id);
               return (
                 <div
                   key={tab.id}
                   className={
                     selected
-                      ? "inline-flex max-w-52 flex-none items-center overflow-hidden rounded-sm border border-fox/45 bg-fox/10"
-                      : "inline-flex max-w-52 flex-none items-center overflow-hidden rounded-sm border border-line bg-surface"
+                      ? "inline-flex max-w-56 flex-none items-center overflow-hidden rounded-sm border border-fox/45 bg-fox/10"
+                      : "inline-flex max-w-56 flex-none items-center overflow-hidden rounded-sm border border-line bg-surface"
                   }
                 >
                   <Button
@@ -852,8 +948,17 @@ export function Dashboard({
                     aria-controls={`session-panel-${tab.id}`}
                     tabIndex={selected ? 0 : -1}
                     className="h-auto min-w-0 flex-1 justify-start gap-1.5 rounded-none py-1.5 pr-1 pl-2.5 text-[0.78rem] font-semibold text-ink shadow-none hover:bg-transparent"
-                    title={tab.subtitle}
-                    onClick={() => selectTab(tab.id)}
+                    title={
+                      isDetached
+                        ? `${tab.title} (Detached) — Click to focus window`
+                        : tab.subtitle
+                    }
+                    onClick={() => {
+                      if (isDetached) {
+                        handleFocusDetachedTab(tab.id);
+                      }
+                      selectTab(tab.id);
+                    }}
                   >
                     <span className="grid shrink-0 place-items-center text-fox" aria-hidden>
                       {tab.session.kind === "local" ? (
@@ -863,12 +968,50 @@ export function Dashboard({
                       )}
                     </span>
                     <span className="truncate">{tab.title}</span>
+                    {isDetached ? (
+                      <span className="ml-1 rounded-full bg-fox/20 px-1.5 py-0.2 text-[9px] font-semibold text-fox shrink-0">
+                        Detached
+                      </span>
+                    ) : null}
                   </Button>
+
+                  {isDetached ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-xs"
+                      className="size-6 rounded-[0.3rem] text-fox hover:text-fox-bright"
+                      aria-label={`Re-attach ${tab.title}`}
+                      title="Re-attach tab to main window"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleReattachTab(tab.id);
+                      }}
+                    >
+                      <IconArrowBackUp size={13} stroke={2} aria-hidden />
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-xs"
+                      className="size-6 rounded-[0.3rem] text-ink-muted hover:text-ink"
+                      aria-label={`Detach ${tab.title}`}
+                      title="Detach tab to new independent window"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDetachTab(tab);
+                      }}
+                    >
+                      <IconArrowUpRight size={13} stroke={2} aria-hidden />
+                    </Button>
+                  )}
+
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon-xs"
-                    className="relative mr-0.5 size-6 rounded-[0.3rem] text-ink-muted after:absolute after:inset-[-0.35rem] after:content-['']"
+                    className="relative mr-0.5 size-6 rounded-[0.3rem] text-ink-muted hover:text-destructive after:absolute after:inset-[-0.35rem] after:content-['']"
                     aria-label={`Close ${tab.title}`}
                     title="Close tab"
                     onClick={(e) => {
@@ -894,6 +1037,7 @@ export function Dashboard({
           >
             {tabs.map((tab) => {
               const paneActive = tab.id === activeTab?.id && view === "session";
+              const isDetached = detachedTabIds.has(tab.id);
               return (
                 <div
                   key={tab.id}
@@ -908,18 +1052,53 @@ export function Dashboard({
                   aria-hidden={!paneActive}
                   inert={!paneActive ? true : undefined}
                 >
-                  <TerminalSplitHost
-                    tab={tab}
-                    active={paneActive}
-                    hosts={allSavedHosts}
-                    onCloseTab={() => closeTab(tab.id)}
-                    onSplitPane={handleSplitPane}
-                    onClosePane={handleClosePane}
-                    onSetActivePane={handleSetActivePane}
-                    onUpdateRatio={handleUpdateSplitRatio}
-                    terminalPrefs={terminalPrefs}
-                    appTheme={theme}
-                  />
+                  {isDetached ? (
+                    <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-edge/60 bg-surface/50 p-8 text-center">
+                      <div className="flex size-12 items-center justify-center rounded-full bg-fox/10 text-fox">
+                        <IconArrowUpRight size={24} stroke={1.8} />
+                      </div>
+                      <div className="max-w-sm">
+                        <h3 className="font-semibold text-ink text-sm">
+                          Session Running in Detached Window
+                        </h3>
+                        <p className="mt-1 text-xs text-ink-muted">
+                          This terminal session is active in a separate native window. You can move it across monitors and work concurrently.
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 mt-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleFocusDetachedTab(tab.id)}
+                        >
+                          Bring Window to Front
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="default"
+                          size="sm"
+                          className="bg-fox hover:bg-fox-bright text-white"
+                          onClick={() => handleReattachTab(tab.id)}
+                        >
+                          Re-attach to Main Window
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <TerminalSplitHost
+                      tab={tab}
+                      active={paneActive}
+                      hosts={allSavedHosts}
+                      onCloseTab={() => closeTab(tab.id)}
+                      onSplitPane={handleSplitPane}
+                      onClosePane={handleClosePane}
+                      onSetActivePane={handleSetActivePane}
+                      onUpdateRatio={handleUpdateSplitRatio}
+                      terminalPrefs={terminalPrefs}
+                      appTheme={theme}
+                    />
+                  )}
                 </div>
               );
             })}

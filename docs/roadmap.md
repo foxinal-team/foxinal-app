@@ -33,7 +33,7 @@
 | `[x]` | **SSH Host Key Verification & Trust Flow** | Automated known_hosts handling with verification failure dialog and trust reset capability. | v1.1 |
 | `[x]` | **Terminal Split Panes (Horizontal / Vertical)** | Split terminal views side-by-side or stacked within the same session tab with draggable resizers and active pane focus. | v1.4 |
 | `[x]` | **Terminal Scrollback Search Bar (`Cmd/Ctrl + F`)** | Real-time buffer search with regex, case sensitivity, whole word matching, and jump-to-match navigation. | v1.4 |
-| `[ ]` | **Detach Terminal / Pop-Out Windows (🔥 High Importance)** | Pop out any active terminal or SFTP tab into an independent, multi-window native desktop frame with seamless session detachment and re-attachment. | v1.4 |
+| `[x]` | **Detach Terminal / Pop-Out Windows (🔥 High Importance)** | Pop out any active terminal or SFTP tab into an independent, multi-window native desktop frame with seamless session detachment and re-attachment. | v1.4 |
 | `[ ]` | **Multi-Exec / Broadcast Input** | Broadcast keystrokes and shell commands simultaneously across multiple selected server tabs. | v1.4 |
 | `[ ]` | **SSH Keep-Alive & Auto-Reconnect** | Configurable `ServerAliveInterval` and seamless reconnection upon Wi-Fi switch or laptop sleep wake. | v1.4 |
 | `[ ]` | **Terminal Session Logging** | Toggle logging raw or formatted session output to local files for audits and compliance. | v1.4 |

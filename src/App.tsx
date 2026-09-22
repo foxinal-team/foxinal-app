@@ -19,6 +19,8 @@ import { hasMasterPassword } from "@/security/masterPassword";
 import { loadSecurityPrefs, type SecurityPrefs } from "@/security/prefs";
 import { unlockApp } from "@/security/session";
 import { APP_VERSION } from "@/lib/version";
+import { parsePopoutParams } from "@/lib/popout";
+import { PopoutWindowContainer } from "@/components/PopoutWindowContainer";
 
 /** Unlocked app session — local-only until server sync exists. */
 export type AppSession = { kind: "local" };
@@ -29,6 +31,18 @@ type UnlockedState = {
 };
 
 function App() {
+  const popoutParams = parsePopoutParams(
+    typeof window !== "undefined" ? window.location.search : "",
+  );
+  if (popoutParams.isPopout && popoutParams.tabId) {
+    return (
+      <PopoutWindowContainer
+        tabId={popoutParams.tabId}
+        kind={popoutParams.kind}
+      />
+    );
+  }
+
   const [locked, setLocked] = useState(() => hasMasterPassword());
   const [unlocked, setUnlocked] = useState<UnlockedState | null>(() => {
     if (hasMasterPassword()) return null;

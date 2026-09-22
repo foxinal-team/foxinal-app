@@ -97,6 +97,57 @@ fn read_text_file(path: String) -> Result<String, String> {
     fs::read_to_string(&file_path).map_err(|e| format!("Could not read file: {e}"))
 }
 
+/// Open an independent native desktop window for a detached terminal or SFTP session.
+#[tauri::command]
+async fn open_detached_window(
+    app: AppHandle,
+    label: String,
+    title: String,
+    url: String,
+) -> Result<(), String> {
+    let label = label.trim().to_string();
+    if label.is_empty() {
+        return Err("Window label cannot be empty.".into());
+    }
+
+    if let Some(existing) = app.get_webview_window(&label) {
+        existing
+            .set_focus()
+            .map_err(|e| format!("Failed to focus window: {e}"))?;
+        return Ok(());
+    }
+
+    tauri::WebviewWindowBuilder::new(&app, &label, tauri::WebviewUrl::App(url.into()))
+        .title(&title)
+        .inner_size(960.0, 640.0)
+        .min_inner_size(480.0, 320.0)
+        .resizable(true)
+        .build()
+        .map_err(|e| format!("Failed to create detached window: {e}"))?;
+
+    Ok(())
+}
+
+/// Bring an open window to the foreground.
+#[tauri::command]
+async fn focus_window(app: AppHandle, label: String) -> Result<(), String> {
+    if let Some(w) = app.get_webview_window(label.trim()) {
+        w.set_focus()
+            .map_err(|e| format!("Failed to focus window: {e}"))?;
+    }
+    Ok(())
+}
+
+/// Close a detached window programmatically.
+#[tauri::command]
+async fn close_window(app: AppHandle, label: String) -> Result<(), String> {
+    if let Some(w) = app.get_webview_window(label.trim()) {
+        w.close()
+            .map_err(|e| format!("Failed to close window: {e}"))?;
+    }
+    Ok(())
+}
+
 fn known_hosts_host_patterns(address: &str, port: u16) -> Vec<String> {
     let address = address.trim();
     let mut hosts = vec![address.to_string(), format!("[{address}]:{port}")];
@@ -381,6 +432,9 @@ pub fn run() {
             clipboard_read_text,
             write_export_file,
             read_text_file,
+            open_detached_window,
+            focus_window,
+            close_window,
             fs_home_dir,
             fs_list_dir,
             fs_parent_dir,

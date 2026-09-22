@@ -74,6 +74,25 @@ Powered by `@xterm/addon-search`:
 
 ---
 
+## Detach / Pop-Out Windows (Multi-Window Subsystem)
+
+Foxinal allows users to detach any active terminal or SFTP session into an independent native desktop window:
+
+- **Secondary Monitor Support**: Move any detached session window to an external display, projector, or separate workspace.
+- **Native Tauri Window Management**:
+  - `open_detached_window`: Spawns a dedicated native `tauri::WebviewWindow` with its own window frame, min dimensions (480x320), default size (960x640), and dynamic URL parameters (`?popout=true&tabId=...&kind=...`).
+  - `focus_window`: Brings any existing detached window to the foreground when clicked from the main session tab list.
+  - `close_window`: Programmatically destroys the detached window.
+- **Seamless State Hand-off**:
+  - Session layout trees and pane states are serialized into `localStorage` (`foxinal_popout_tab_<tabId>`).
+  - Shared webview origin allows instantaneous zero-latency state restoration in the popped-out container without re-authenticating vault credentials.
+- **Bi-directional Re-attachment Lifecycle**:
+  - Clicking **Attach Back** in the detached window or **Re-attach to Main Window** in the main dashboard smoothly restores the session to the main workspace.
+  - Inter-window communication uses Tauri events (`foxinal:reattach-session`).
+  - **Graceful OS Window Close Protection**: If the user closes the detached window via the OS close button (`x`), the `beforeunload` lifecycle hook fires and re-attaches the session, preventing session state loss.
+
+---
+
 ## Related Documentation
 - [System Architecture](file:///Users/danial/Documents/Projects/foxinal/docs/architecture.md)
 - [Security & Vault](file:///Users/danial/Documents/Projects/foxinal/docs/security-and-vault.md)
